@@ -1,0 +1,19 @@
+{
+  "models": [
+    {
+      "title": "Qwen 3B (Coding)",
+      "provider": "ollama",
+      "model": "qwen2.5-coder:3b"
+    },
+    {
+      "title": "Mistral 7B (Planning)",
+      "provider": "ollama",
+      "model": "mistral"
+    }
+  ],
+  "tabAutocompleteModel": {
+    "title": "Qwen 3B Autocomplete",
+    "provider": "ollama",
+    "model": "qwen2.5-coder:3b"
+  }
+}

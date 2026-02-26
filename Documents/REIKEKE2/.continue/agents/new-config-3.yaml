@@ -1,0 +1,26 @@
+name: Reikeke-Dev-Config
+version: 1.0.0
+schema: v1
+
+models:
+  # The "Speedster" for daily coding and UI styling
+  - name: Qwen 3B (Coding)
+    provider: ollama
+    model: qwen2.5-coder:3b
+
+  # The "Architect" for planning the Ride Engine logic
+  - name: Mistral 7B (Planning)
+    provider: ollama
+    model: mistral
+
+# This part makes the AI suggest code while you type
+tabAutocompleteModel:
+  name: Qwen Autocomplete
+  provider: ollama
+  model: qwen2.5-coder:3b
+
+# This is important for your startup workflow
+contextProviders:
+  - name: code
+  - name: docs
+  - name: terminal
