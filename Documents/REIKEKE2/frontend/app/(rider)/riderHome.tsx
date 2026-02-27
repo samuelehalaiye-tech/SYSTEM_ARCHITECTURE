@@ -47,21 +47,16 @@ export default function PassengerHome() {
   const [dropoffCoords, setDropoffCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
 
  const handleConfirm = async () => {
+  // Guard clause: Don't even try if coords are missing
+  if (!pickupCoords.lat || !dropoffCoords.lat) {
+    Alert.alert("Error", "Please select locations from the suggestions list.");
+    return;
+  }
+
   try {
     const token = await AsyncStorage.getItem('userToken');
+    const fullUrl = `${BASE_URL}/rides/estimate/`; 
     
-    // LOG THE URL: Copy this from your console to see if it looks right
-    const fullUrl = `${BASE_URL}/trips/estimate/`; 
-    console.log("Calling URL:", fullUrl);
-    const response = await requestRide(rideData, token);
-
-if (response && response.trip_id) {
-  // Navigate to searching screen with the new trip ID
-  router.replace({
-    pathname: '/(rider)/searching',
-    params: { trip_id: response.trip_id }
-  });
-}
     const response = await fetch(fullUrl, {
       method: 'POST',
       headers: { 
@@ -69,44 +64,39 @@ if (response && response.trip_id) {
         'Authorization': `Bearer ${token}` 
       },
       body: JSON.stringify({
-        pickup_lat: parseFloat(pickupCoords.lat!.toFixed(6)),
-    pickup_lng: parseFloat(pickupCoords.lng!.toFixed(6)),
-    dropoff_lat: parseFloat(dropoffCoords.lat!.toFixed(6)),
-    dropoff_lng: parseFloat(dropoffCoords.lng!.toFixed(6)),
+        pickup_lat: pickupCoords.lat,
+        pickup_lng: pickupCoords.lng,
+        dropoff_lat: dropoffCoords.lat,
+        dropoff_lng: dropoffCoords.lng,
       }),
     });
 
     const result = await response.json();
-    console.log("Backend response:", result); // This tells us EVERYTHING
-if (response.ok && result.status === "success") {
-      // 3. Unpack the "estimate" object from your Django response
-      const { estimated_fare, distance_km } = result.estimate;
 
-      // ACTUALLY NAVIGATE HERE:
+    if (response.ok && result.status === "success") {
+      // Logic for Phase 3: Passing data to the Confirmation screen
       router.push({
         pathname: "/(rider)/riderConfirm",
         params: {
-          pickup: pickup,
-          dropoff: dropoff,
-          price: estimated_fare.toString(), 
-          distance: distance_km.toString(),
-          pLat: pickupCoords.lat?.toString() || '',
-          pLng: pickupCoords.lng?.toString() || '',
-          dLat: dropoffCoords.lat?.toString() || '',
-          dLng: dropoffCoords.lng?.toString() || '',
+          pickup,
+          dropoff,
+          price: result.estimate.estimated_fare.toString(), 
+          distance: result.estimate.distance_km.toString(),
+          pLat: pickupCoords.lat?.toString() ?? '',
+          pLng: pickupCoords.lng?.toString() ?? '',
+          dLat: dropoffCoords.lat?.toString() ?? '',
+          dLng: dropoffCoords.lng?.toString() ?? '',
         }
       });
     } else {
-      // IF DJANGO SAYS "No active pricing", this alert will show it.
-      Alert.alert("Ride Error", result.error || "Check Django Admin for Active PriceConfig");
+      Alert.alert("Service Unavailable", result.error || "Could not calculate fare.");
     }
   } catch (error) {
-    console.error("Fetch Error:", error);
-    Alert.alert("Network Error", "Is your server running at " + BASE_URL + "?");
+    Alert.alert("Connection Error", "Ensure your Django server is accessible.");
   }
 };
 
-  const isButtonDisabled = !pickupCoords.lat || !dropoffCoords.lat;
+  const isButtonDisabled = !pickupCoords.lat || !dropoffCoords.lat || !pickup || !dropoff;
 
   // ... rest of your return/JSX code
 

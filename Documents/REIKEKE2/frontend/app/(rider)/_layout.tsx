@@ -6,7 +6,7 @@ export default function RiderLayout() {
       <Stack.Screen name="riderLogin" />
       <Stack.Screen name="riderSignup" />
       
-      <Stack.Screen name="SearchingForDriver" />
+      
       <Stack.Screen name="riderConfirm" />
       
 

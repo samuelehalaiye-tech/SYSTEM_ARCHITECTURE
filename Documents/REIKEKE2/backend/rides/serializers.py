@@ -25,11 +25,10 @@ class DriverLocationSerializer(serializers.ModelSerializer):
 
 class TripEstimateSerializer(serializers.Serializer):
     """Calculate fare estimate for a trip"""
-    pickup_lat = serializers.DecimalField(max_digits=20, decimal_places=6)
-    pickup_lng = serializers.DecimalField(max_digits=20, decimal_places=6)
-    dropoff_lat = serializers.DecimalField(max_digits=20, decimal_places=6)
-    dropoff_lng = serializers.DecimalField(max_digits=20, decimal_places=6)
-
+    pickup_lat = serializers.FloatField()
+    pickup_lng = serializers.FloatField()
+    dropoff_lat = serializers.FloatField()
+    dropoff_lng = serializers.FloatField()
 
 class TripRequestSerializer(serializers.ModelSerializer):
     """Initialize a new trip request"""

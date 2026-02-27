@@ -43,6 +43,10 @@ class SearchDriverView(APIView):
         try:
             # Grab the latest pricing config (Phase 1 logic)
             config = PriceConfig.objects.filter(is_active=True).last()
+            dist_km = calculate_haversine_distance(
+                float(data.get('pickup_lat')), float(data.get('pickup_lng')),
+                float(data.get('dropoff_lat')), float(data.get('dropoff_lng'))
+            )
             
             trip = Trips.objects.create(
                 rider=rider_profile,
@@ -53,6 +57,7 @@ class SearchDriverView(APIView):
                 dropoff_lat=data.get('dropoff_lat'),
                 dropoff_lng=data.get('dropoff_lng'),
                 final_fare=data.get('final_fare'),
+                total_distance=Decimal(str(dist_km)),
                 price_config=config,
                 status=Status.SEARCHING
             )
@@ -410,6 +415,7 @@ class TripEstimateView(APIView):
                     "currency": "NGN"
                 }
             }, status=status.HTTP_200_OK)
+        print("DEBUG SERIALIZER ERRORS:", serializer.errors)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -465,6 +471,7 @@ class TripRequestView(APIView):
         except Exception as e:
             print(f"TRIP CREATION FAILED: {str(e)}")
             return Response({"error": "Failed to initiate trip"}, status=500)
+           
         
 class TripStatusView(APIView):
     permission_classes = [IsAuthenticated]

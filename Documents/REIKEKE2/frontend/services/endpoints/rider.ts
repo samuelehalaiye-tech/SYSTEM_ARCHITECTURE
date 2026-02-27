@@ -16,7 +16,7 @@ export const requestRide = async (rideData: any, token: string) => {
     console.log("Payload being sent to Django:", JSON.stringify(payload, null, 2));
 
     try {
-        const response = await fetch(`${BASE_URL}/trips/request/`, {
+        const response = await fetch(`${BASE_URL}/rides/request/`, {
             method: 'POST',
             headers: {
                 ...API_HEADERS,
@@ -44,7 +44,7 @@ export const requestRide = async (rideData: any, token: string) => {
 
 export const getRideStatus = async (tripId: string, token: string) => {
   try {
-    const response = await fetch(`${BASE_URL}/rides/${tripId}/status/`, {
+    const response = await fetch(`${BASE_URL}/rides/trips/${tripId}/status/`, {
       method: 'GET',
       headers: {
         ...API_HEADERS,
