@@ -5,13 +5,13 @@ import { router } from "expo-router";
 export const requestRide = async (rideData: any, token: string) => {
     console.log("--- FRONTEND OUTBOUND LOG ---");
     const payload = {
-    // Left side = Django Model Names | Right side = React Native State names
-    pickup_location_name: rideData.pickupAddress, 
-    dropoff_location_name: rideData.dropoffAddress,
-    pickup_lat: rideData.pickupLat,
-    pickup_lng: rideData.pickupLng,
-    dropoff_lat: rideData.dropoffLat,
-    dropoff_lng: rideData.dropoffLng
+    // Fields match exactly what riderConfirm.tsx sends
+    pickup_location_name: rideData.pickup_location_name, 
+    dropoff_location_name: rideData.dropoff_location_name,
+    pickup_lat: rideData.pickup_lat,
+    pickup_lng: rideData.pickup_lng,
+    dropoff_lat: rideData.dropoff_lat,
+    dropoff_lng: rideData.dropoff_lng
 };
     console.log("Payload being sent to Django:", JSON.stringify(payload, null, 2));
 

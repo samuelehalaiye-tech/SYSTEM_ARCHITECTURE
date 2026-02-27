@@ -26,7 +26,7 @@ urlpatterns = [
     path('trips/<uuid:trip_id>/accept/', AcceptRiderVeiw.as_view(), name='accept-trip'),
     
     # Ride Engine - Trip Management
-    path('trips/estimate/', TripEstimateView.as_view(), name='trip-estimate'),  # PHASE 1
+    path('estimate/', TripEstimateView.as_view(), name='trip-estimate'),  # PHASE 1
     path('request/', TripRequestView.as_view(), name='trip-request'),  # PHASE 1
     path('trips/<uuid:trip_id>/start/', StartTripView.as_view(), name='start-trip'),
     path('trips/<uuid:trip_id>/track/', TrackingView.as_view(), name='track-trip'),

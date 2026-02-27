@@ -17,6 +17,7 @@ import { MapPin, Navigation } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
 import { requestRide } from '@/services/endpoints/rider';
+import { BASE_URL } from '@/services/config';
 interface PlaceDetails {
   geometry: {
     location: {
@@ -45,54 +46,57 @@ export default function PassengerHome() {
   const [pickupCoords, setPickupCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [dropoffCoords, setDropoffCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
 
-  const handleConfirm = async () => {
-    if (pickupCoords.lat && pickupCoords.lng && dropoffCoords.lat && dropoffCoords.lng) {
-      const trim = (num: number) => parseFloat(num.toFixed(6));
-      
-      const rideDataForService = {
-        pickupAddress: pickup,
-        dropoffAddress: dropoff,
-        pickupLat: trim(pickupCoords.lat),
-        pickupLng: trim(pickupCoords.lng),
-        dropoffLat: trim(dropoffCoords.lat),
-        dropoffLng: trim(dropoffCoords.lng),
-      };
+ const handleConfirm = async () => {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    
+    // LOG THE URL: Copy this from your console to see if it looks right
+    const fullUrl = `${BASE_URL}/trips/estimate/`; 
+    console.log("Calling URL:", fullUrl);
 
-      try {
-        const token = await AsyncStorage.getItem('userToken');
-        
-        if (!token) {
-          Alert.alert("Authentication Error", "Please log in again.");
-          router.replace('/(auth)');
-          return;
+    const response = await fetch(fullUrl, {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}` 
+      },
+      body: JSON.stringify({
+        pickup_lat: parseFloat(pickupCoords.lat!.toFixed(6)),
+    pickup_lng: parseFloat(pickupCoords.lng!.toFixed(6)),
+    dropoff_lat: parseFloat(dropoffCoords.lat!.toFixed(6)),
+    dropoff_lng: parseFloat(dropoffCoords.lng!.toFixed(6)),
+      }),
+    });
+
+    const result = await response.json();
+    console.log("Backend response:", result); // This tells us EVERYTHING
+if (response.ok && result.status === "success") {
+      // 3. Unpack the "estimate" object from your Django response
+      const { estimated_fare, distance_km } = result.estimate;
+
+      // ACTUALLY NAVIGATE HERE:
+      router.push({
+        pathname: "/(rider)/riderConfirm",
+        params: {
+          pickup: pickup,
+          dropoff: dropoff,
+          price: estimated_fare.toString(), 
+          distance: distance_km.toString(),
+          pLat: pickupCoords.lat?.toString() || '',
+          pLng: pickupCoords.lng?.toString() || '',
+          dLat: dropoffCoords.lat?.toString() || '',
+          dLng: dropoffCoords.lng?.toString() || '',
         }
-
-        console.log("🚀 Dispatching request to Django...");
-
-        // THE FIX: This is the ONLY place 'response' should be called
-        const response = await requestRide(rideDataForService, token);
-
-        // THE KEY CHECK: Matching your Django log 'trip_id'
-        if (response && response.trip_id) { 
-          Alert.alert(
-            "Ride Requested", 
-            `Searching for Keke near ${pickup.split(',')[0]}...`
-          );
-          // router.push(`/(rider)/trip/${response.trip_id}`); 
-        } else {
-          // If you see this now, check if your service/endpoint/rider.ts 
-          // is returning 'data' or 'response'
-          Alert.alert("Backend Error", "Trip created in DB but frontend failed to read 'trip_id'.");
-        }
-
-      } catch (error) {
-        console.error("Critical Network Failure:", error);
-        Alert.alert("Network Error", "Cannot reach the Keke server.");
-      }
+      });
     } else {
-      Alert.alert("Selection Required", "Please select locations from the suggestions list.");
+      // IF DJANGO SAYS "No active pricing", this alert will show it.
+      Alert.alert("Ride Error", result.error || "Check Django Admin for Active PriceConfig");
     }
-  };
+  } catch (error) {
+    console.error("Fetch Error:", error);
+    Alert.alert("Network Error", "Is your server running at " + BASE_URL + "?");
+  }
+};
 
   const isButtonDisabled = !pickupCoords.lat || !dropoffCoords.lat;
 

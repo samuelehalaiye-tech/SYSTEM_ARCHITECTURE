@@ -32,26 +32,22 @@ class DriverHeartbeatView(APIView):
 
 
 class SearchDriverView(APIView):
-    def post(self,request):
-        lat=Decimal(request.data.get('lat'))
-        lng=Decimal(request.data.get('lng'))
+    def post(self, request):
+        lat = Decimal(request.data.get('lat'))
+        lng = Decimal(request.data.get('lng'))
+        trip_id = request.data.get('trip_id') # Get this from the Rider's active trip
 
-        drivers, found_radii= RippleSearch(lat,lng)
+        # Now RippleSearch knows who to exclude!
+        drivers, found_radii = RippleSearch(lat, lng, trip_id)
 
         if drivers:
+            # Here is where Phase 2 Step 6 happens:
+            # Send a Push Notification (FCM) to these specific driver IDs
             return Response({
-                'status':'successs',
-                'message':f"found {drivers.count()} drivers within {found_radii}km",
-                'drivers': [d.id for d in drivers]
+                'status': 'success',
+                'drivers_found': drivers.count(),
+                'radius': found_radii
             })
-
-        return Response({
-            'status':'Empty',
-            'message':'No drivers available nearby. Expanding search failed.',
-
-
-        }, status=404)
-
 
 
 class RejectRiderView(APIView):

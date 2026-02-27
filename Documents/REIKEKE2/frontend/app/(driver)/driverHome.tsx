@@ -15,6 +15,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage'; // MUST IM
 import { useRouter } from 'expo-router'; // MUST IMPORT
 
 import { updateDriverStatus } from '../../services/endpoints/driver'; // Ensure path is correct
+import * as Location from 'expo-location';
+import * as TaskManager from 'expo-task-manager';
+import { BASE_URL } from '@/services/config';
 interface DriverHomeProps {
   phone: string;
   onViewOffers: () => void;
@@ -24,7 +27,7 @@ export default function DriverHome({ phone, onViewOffers }: DriverHomeProps) {
   const [isOnline, setIsOnline] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const router = useRouter(); // Initialize the router
-
+  
   const handleLogout = async () => {
     setLoadingStatus(true);
     try {
@@ -74,6 +77,78 @@ export default function DriverHome({ phone, onViewOffers }: DriverHomeProps) {
     console.error("Status Toggle Error:", error);
   }
   setLoadingStatus(false);
+};
+
+
+const LOCATION_TASK_NAME = 'background-location-task';
+
+// --- 1. Define the Heartbeat function (Fixes "Cannot find name") ---
+const sendHeartbeatToDjango = async (latitude: number, longitude: number) => {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    if (!token) return;
+
+    // Replace with your actual backend URL
+    const response = await fetch(`${BASE_URL}/driver/heartbeat/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        current_lat: latitude,
+        current_lng: longitude,
+        is_online: true
+      }),
+    });
+    console.log("GPS Heartbeat Sent:", response.status);
+  } catch (err) {
+    console.error("Heartbeat failed:", err);
+  }
+};
+
+// --- 2. Define the Background Task (Fixes "Implicitly any") ---
+// We explicitly type the 'data' parameter so TypeScript is happy.
+interface LocationTaskData {
+  locations: Location.LocationObject[];
+}
+
+TaskManager.defineTask(LOCATION_TASK_NAME, async ({ data, error }: { data: any; error: any }) => {
+  if (error) {
+    console.error("Background Location Error:", error);
+    return;
+  }
+  
+  if (data) {
+    // Explicitly cast the data to our interface
+    const { locations } = data as LocationTaskData;
+    
+    if (locations && locations.length > 0) {
+      const { latitude, longitude } = locations[0].coords;
+      
+      // We MUST await this so the task doesn't finish before the fetch completes
+      await sendHeartbeatToDjango(latitude, longitude);
+    }
+  }
+});
+
+// --- 3. Start Tracking Function ---
+const startTracking = async () => {
+  const { status: foreground } = await Location.requestForegroundPermissionsAsync();
+  const { status: background } = await Location.requestBackgroundPermissionsAsync();
+
+  if (foreground === 'granted' && background === 'granted') {
+    await Location.startLocationUpdatesAsync(LOCATION_TASK_NAME, {
+      accuracy: Location.Accuracy.BestForNavigation,
+      timeInterval: 10000,
+      distanceInterval: 10,
+      // This keeps the GPS alive on Android
+      foregroundService: {
+        notificationTitle: "Keke Online",
+        notificationBody: "Your location is being shared for rides.",
+      },
+    });
+  }
 };
 
   return (
