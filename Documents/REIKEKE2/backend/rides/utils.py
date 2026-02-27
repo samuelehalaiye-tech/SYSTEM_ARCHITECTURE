@@ -32,37 +32,19 @@ def fare_estimator(config,distance_km):
 
     return final_fare.quantize(Decimal('0.01'))
 
-def RippleSearch(rider_lat,rider_lng,trip_id):
-    search_radii=[2,5,10]
+def BlastSearch(trip_id):
+    # Get all online drivers, minus those who already rejected this specific trip
+    # We ignore location proximity for now since the pool is small in Yola
+    drivers = DriverProfile.objects.filter(
+        is_online=True
+        # Optional: Add .filter(is_busy=False) if you have that field
+    )
 
-    for radii in search_radii:
-        offset=Decimal(radii)*Decimal('0.009')
-        min_lat= rider_lat-offset
-        max_lat=rider_lat+offset
-        min_lng=rider_lng-offset
-        max_lng=rider_lng+offset
+    if trip_id:
+        drivers = drivers.exclude(rejected_trips__id=trip_id)
 
-        drivers= DriverProfile.objects.filter(
-            is_online=True,
-            current_lng__range=(min_lng, max_lng),
-            current_lat__range=(min_lat, max_lat)
-        ).only('user','id')
-
-        if trip_id:
-
-            drivers = drivers.exclude(rejected_trips__id=trip_id)
-
-  
-        if drivers.exists():
-            return drivers,radii
-    return None,None
-
-
-
-
-
-
-
+    # Return the QuerySet directly (or .all() if you need to force evaluation)
+    return drivers
 
 
 

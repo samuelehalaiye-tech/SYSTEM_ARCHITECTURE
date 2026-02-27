@@ -34,15 +34,16 @@ export default function ConfirmRide() {
   estimated_fare: parseFloat(price as string), 
 };
 
+      
       const response = await requestRide(rideData, token);
 
-      if (response && response.trip_id) {
-        Alert.alert("Success", "Searching for your Keke...");
-        // Redirect to tracking page or back home
-        router.replace('/(rider)/riderHome'); 
-      } else {
-        Alert.alert("Error", "Could not initiate ride search.");
-      }
+if (response && response.trip_id) {
+  // Navigate to searching screen with the new trip ID
+  router.replace({
+   pathname: '/searching', // REMOVE the /(rider)/ part
+   params: { trip_id: response.trip_id }
+ });
+}
     } catch (error) {
       Alert.alert("Network Error", "Check your connection.");
     } finally {

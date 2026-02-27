@@ -53,7 +53,15 @@ export default function PassengerHome() {
     // LOG THE URL: Copy this from your console to see if it looks right
     const fullUrl = `${BASE_URL}/trips/estimate/`; 
     console.log("Calling URL:", fullUrl);
+    const response = await requestRide(rideData, token);
 
+if (response && response.trip_id) {
+  // Navigate to searching screen with the new trip ID
+  router.replace({
+    pathname: '/(rider)/searching',
+    params: { trip_id: response.trip_id }
+  });
+}
     const response = await fetch(fullUrl, {
       method: 'POST',
       headers: { 

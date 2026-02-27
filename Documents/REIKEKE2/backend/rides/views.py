@@ -2,7 +2,7 @@ from django.shortcuts import render
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .utils import RippleSearch, calculate_haversine_distance, fare_estimator
+from .utils import BlastSearch, calculate_haversine_distance, fare_estimator
 from decimal import Decimal
 from . models import Trips, Status,  PriceConfig
 from .serializers import DriverStatusSerializer, DriverLocationSerializer, TripEstimateSerializer, TripRequestSerializer
@@ -10,8 +10,8 @@ from django.db import transaction
 from datetime import timezone
 from django.utils import timezone
 from rest_framework import status
-import math
 
+from rest_framework import status
 # Create your views here.
 
 
@@ -32,23 +32,53 @@ class DriverHeartbeatView(APIView):
 
 
 class SearchDriverView(APIView):
+    permission_classes = [IsAuthenticated]
+
     def post(self, request):
-        lat = Decimal(request.data.get('lat'))
-        lng = Decimal(request.data.get('lng'))
-        trip_id = request.data.get('trip_id') # Get this from the Rider's active trip
+        data = request.data
+        rider_profile = request.user.rider_profile
 
-        # Now RippleSearch knows who to exclude!
-        drivers, found_radii = RippleSearch(lat, lng, trip_id)
+        # 1. Create the Trip Record first
+        # We need this so the 'blast' has a real database ID to send to drivers
+        try:
+            # Grab the latest pricing config (Phase 1 logic)
+            config = PriceConfig.objects.filter(is_active=True).last()
+            
+            trip = Trips.objects.create(
+                rider=rider_profile,
+                pickup_location_name=data.get('pickup_location_name'),
+                dropoff_location_name=data.get('dropoff_location_name'),
+                pickup_lat=data.get('pickup_lat'),
+                pickup_lng=data.get('pickup_lng'),
+                dropoff_lat=data.get('dropoff_lat'),
+                dropoff_lng=data.get('dropoff_lng'),
+                final_fare=data.get('final_fare'),
+                price_config=config,
+                status=Status.SEARCHING
+            )
 
-        if drivers:
-            # Here is where Phase 2 Step 6 happens:
-            # Send a Push Notification (FCM) to these specific driver IDs
+            # 2. Now perform the "Blast" using the newly created trip
+            drivers = BlastSearch(trip.id)
+
+            if drivers.exists():
+                # In a real startup, you'd trigger FCM here
+                return Response({
+                    'status': 'success',
+                    'trip_id': str(trip.id),
+                    'drivers_notified': drivers.count()
+                })
+            
+            # If no drivers found, we still created the trip, 
+            # but we tell the rider we're struggling
             return Response({
-                'status': 'success',
-                'drivers_found': drivers.count(),
-                'radius': found_radii
-            })
+                'status': 'no_drivers_found',
+                'trip_id': str(trip.id),
+                'message': 'Keep searching? No drivers active in Jimeta right now.'
+            }, status=200) # 200 because the trip was still created
 
+        except Exception as e:
+            print(f"Error creating trip: {e}")
+            return Response({'status': 'error', 'message': str(e)}, status=400)
 
 class RejectRiderView(APIView):
     permission_classes = [IsAuthenticated]
@@ -77,33 +107,62 @@ class RejectRiderView(APIView):
         except Trips.DoesNotExist:
             return Response({'error': 'Trip not found'}, status=404)
 
-class AcceptRiderVeiw(APIView):
-    permission_classes=[IsAuthenticated]
+class AcceptRiderView(APIView):
+    permission_classes = [IsAuthenticated]
 
-
-    def post(self,request,trip_id):
-
-        driver_profile=request.user.driver_profile
+    def post(self, request, trip_id):
+        # 1. Get the driver profile safely
+        try:
+            driver_profile = request.user.driver_profile
+        except AttributeError:
+            return Response({'error': 'User is not a driver'}, status=403)
 
         try:
             with transaction.atomic():
-                trip=Trips.objects.select_for_update().get(id=trip_id)
+                # 2. Lock the specific trip row immediately. 
+                # select_for_update(nowait=False) makes others wait in line.
+                trip = Trips.objects.select_for_update().get(id=trip_id)
 
-                if trip.status != Status.SEARCHING:
-                    return Response({'error':"Ride has been taken by another keke"}, status=400)
+                # 3. Double-check: Is the trip still available?
+                if trip.status != Status.SEARCHING or trip.driver is not None:
+                    return Response({
+                        'error': "Too late! This ride was just snatched by another Keke."
+                    }, status=400)
 
+                # 4. Optional but Recommended: Is the driver already on a trip?
+                # This prevents one driver from 'hoarding' multiple blast requests.
+                if Trips.objects.filter(driver=driver_profile, status=Status.ACCEPTED).exists():
+                    return Response({'error': "You already have an active trip!"}, status=400)
 
-                trip.driver=driver_profile
-                trip.status=Status.ACCEPTED
+                # 5. Atomic Update
+                trip.driver = driver_profile
+                trip.status = Status.ACCEPTED
                 trip.save()
 
-                driver_profile.is_online=False
+                # 6. Update Driver State
+                # Instead of going 'offline', we mark them as busy.
+                # If you use 'is_online=False', remember to flip it back on 'End Trip'.
+                driver_profile.is_online = False 
                 driver_profile.save()
-            return Response({"status":'success','message':'The ride is yours'})
-        
+
+                # 7. TODO: Trigger a Push Notification to the Rider here!
+                # "Your Keke is on the way!"
+
+            return Response({
+                "status": 'success',
+                'message': 'Ride secured! Drive safely.',
+                'trip_details': {
+                    'rider_name': trip.rider.user.get_full_name(),
+                    'pickup': trip.pickup_location_name,
+                    'otp': trip.otp # They'll need this for Step 8
+                }
+            })
 
         except Trips.DoesNotExist:
-            return Response({'error':'Trip not found'}, status=404)
+            return Response({'error': 'Trip no longer exists'}, status=404)
+        except Exception as e:
+            # Log this for your internal Sentry/Logs
+            return Response({'error': 'A server error occurred'}, status=500)
 
 
 class StartTripView(APIView):
@@ -160,36 +219,44 @@ class TripCancelView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, trip_id):
-        driver_profile = request.user.driver_profile
-       
-
+        user = request.user
+        
         try:
             with transaction.atomic():
+                # Lock the trip
+                trip = Trips.objects.select_for_update().get(id=trip_id)
+
+                # 1. Check if the Rider is cancelling (Allowed during SEARCHING or ACCEPTED)
+                if hasattr(user, 'rider_profile') and trip.rider == user.rider_profile:
+                    if trip.status in [Status.SEARCHING, Status.ACCEPTED]:
+                        trip.status = Status.CANCELLED
+                        trip.save()
+                        
+                        # If a driver was already assigned, put them back online
+                        if trip.driver:
+                            trip.driver.is_online = True
+                            trip.driver.save()
+                            
+                        return Response({"status": "success", "message": "Trip cancelled by rider."})
+                    else:
+                        return Response({"error": "You cannot cancel a trip that has already started."}, status=400)
+
+                # 2. Check if the Driver is cancelling (Your original logic)
+                elif hasattr(user, 'driver_profile') and trip.driver == user.driver_profile:
+                    if trip.status in [Status.ACCEPTED, Status.ONGOING]: # Use ONGOING instead of STARTED
+                        trip.status = Status.CANCELLED
+                        trip.save()
+                        
+                        driver_profile = user.driver_profile
+                        driver_profile.is_online = True
+                        driver_profile.save()
+                        
+                        return Response({"status": "success", "message": "Trip cancelled. You are back online."})
                 
-                trip = Trips.objects.select_for_update().get(
-                    id=trip_id, 
-                    driver=driver_profile, 
-                    status__in=[Status.ACCEPTED, Status.STARTED]
-                )
-
-                trip.status = Status.CANCELLED
-            
-                trip.completed_at = timezone.now() 
-                trip.save()
-
-              
-                driver_profile.is_online = True
-                driver_profile.save()
-
-            return Response({
-                "status": "success",
-                "message": f"Trip {trip_id} cancelled. You are now back online."
-            })
+                return Response({"error": "Unauthorized to cancel this trip."}, status=403)
 
         except Trips.DoesNotExist:
-            return Response({
-                "error": "Cancellable trip not found. It may have already been completed."
-            }, status=404)
+            return Response({"error": "Trip not found."}, status=404)
         
 
 
@@ -398,3 +465,71 @@ class TripRequestView(APIView):
         except Exception as e:
             print(f"TRIP CREATION FAILED: {str(e)}")
             return Response({"error": "Failed to initiate trip"}, status=500)
+        
+class TripStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, trip_id):
+        try:
+            # We fetch the trip and the driver details (if any)
+            trip = Trips.objects.select_related('driver__user').get(id=trip_id)
+            
+            response_data = {
+                'status': trip.status,
+                'trip_id': trip.id,
+            }
+
+            # If a driver has accepted, send their details so the UI can update
+            if trip.status == Status.ACCEPTED and trip.driver:
+                response_data['driver'] = {
+                    'name': trip.driver.user.get_full_name(),
+                    'phone': trip.driver.user.phone_number,
+                    'keke_plate': getattr(trip.driver, 'plate_number', 'N/A'),
+                    'lat': trip.driver.current_lat,
+                    'lng': trip.driver.current_lng,
+                }
+                # Also give the Rider their OTP to show on the "Driver Found" screen
+                response_data['otp'] = trip.otp
+
+            return Response(response_data)
+
+        except Trips.DoesNotExist:
+            return Response({'error': 'Trip not found'}, status=404)
+        
+class AvailableOffersView(APIView):
+    """
+    Returns a list of trips that are currently SEARCHING and 
+    have NOT been rejected by this driver.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            driver_profile = request.user.driver_profile
+        except AttributeError:
+            return Response({'error': 'Only drivers can view offers'}, status=403)
+
+        # 1. Filter trips: 
+        # - Status is SEARCHING
+        # - Not already assigned to a driver
+        # - NOT in the rejected_by list for this specific driver
+        offers = Trips.objects.filter(
+            status=Status.SEARCHING,
+            driver__isnull=True
+        ).exclude(rejected_by=driver_profile).order_by('-created_at')
+
+        # 2. Map the data to the format your React Native Frontend expects
+        data = []
+        for trip in offers:
+            data.append({
+                "id": trip.id,
+                "rider_phone": trip.rider.user.phone_number,
+                "pickup_location_name": trip.pickup_location_name,
+                "dropoff_location_name": trip.dropoff_location_name,
+                "final_fare": float(trip.final_fare),
+                "pickup_lat": trip.pickup_lat,
+                "pickup_lng": trip.pickup_lng,
+                "created_at": trip.created_at
+            })
+
+        return Response(data)

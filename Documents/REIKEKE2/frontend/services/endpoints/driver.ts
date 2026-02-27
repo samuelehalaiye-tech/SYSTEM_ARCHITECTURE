@@ -20,21 +20,32 @@ export const updateDriverStatus =async(isOnline:boolean, token:string)=>{
     }
 }
 
-export const getRideOffers =async( token:string)=>{
-    try{
-        const response= await fetch(`${BASE_URL}/rides/offers/`, {
+export const getRideOffers = async (token: string) => {
+    try {
+        const response = await fetch(`${BASE_URL}/rides/offers/`, {
             method: 'GET',
             headers: {
-                ... API_HEADERS,
-                'Authorization':`Bearer ${token}`
+                ...API_HEADERS,
+                'Authorization': `Bearer ${token}`
             },
-    
+        });
 
-        })
-        return await response.json()
-    } catch (error){
-        console.error("Status Toggle Error :", error);
-        throw error;
+        // If the server is down or the route is wrong, don't just crash
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error(`Offers Fetch Failed (${response.status}):`, errorText);
+            return []; // Return empty array so the FlatList doesn't break
+        }
+
+        const data = await response.json();
+        
+        // Ensure we always return an array, even if the backend sends null
+        return Array.isArray(data) ? data : (data.results || []);
+        
+    } catch (error) {
+        // Renamed error log for clarity (it was saying 'Status Toggle')
+        console.error("Fetch Ride Offers Error:", error);
+        return []; 
     }
 }
 
