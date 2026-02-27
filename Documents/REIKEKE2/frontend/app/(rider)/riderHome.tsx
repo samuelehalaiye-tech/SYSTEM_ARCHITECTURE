@@ -37,7 +37,7 @@ interface PassengerHomeProps {
   }) => void;
 }
 
-export default function PassengerHome() { // Remove { onConfirmRide }
+export default function PassengerHome() {
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
   const router = useRouter();
@@ -45,12 +45,10 @@ export default function PassengerHome() { // Remove { onConfirmRide }
   const [pickupCoords, setPickupCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [dropoffCoords, setDropoffCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
 
-  // 2. Updated handleConfirm to manage the trip logic internally
   const handleConfirm = async () => {
-    // 1. Validate we have the "Brains" (Coordinates)
     if (pickupCoords.lat && pickupCoords.lng && dropoffCoords.lat && dropoffCoords.lng) {
       const trim = (num: number) => parseFloat(num.toFixed(6));
-      // 2. Map State to the exact keys your 'requestRide' service expects
+      
       const rideDataForService = {
         pickupAddress: pickup,
         dropoffAddress: dropoff,
@@ -61,44 +59,44 @@ export default function PassengerHome() { // Remove { onConfirmRide }
       };
 
       try {
-        // 3. Get the "Gatekeeper" token
         const token = await AsyncStorage.getItem('userToken');
         
         if (!token) {
-          Alert.alert("Authentication Error", "Please log in again to book a ride.");
+          Alert.alert("Authentication Error", "Please log in again.");
           router.replace('/(auth)');
           return;
         }
 
         console.log("🚀 Dispatching request to Django...");
 
-        // 4. Fire the API call
+        // THE FIX: This is the ONLY place 'response' should be called
         const response = await requestRide(rideDataForService, token);
 
-        // 5. Handle the Handshake (Phase 3)
-        if (response && (response.id || response.pk)) {
+        // THE KEY CHECK: Matching your Django log 'trip_id'
+        if (response && response.trip_id) { 
           Alert.alert(
             "Ride Requested", 
             `Searching for Keke near ${pickup.split(',')[0]}...`
           );
-          
-          // Step 9: Active Trip Persistence (Move to the live tracking screen)
-          // router.push(`/(rider)/trip/${response.id}`); 
+          // router.push(`/(rider)/trip/${response.trip_id}`); 
         } else {
-          Alert.alert("Backend Error", "Django received the request but failed to create a trip.");
+          // If you see this now, check if your service/endpoint/rider.ts 
+          // is returning 'data' or 'response'
+          Alert.alert("Backend Error", "Trip created in DB but frontend failed to read 'trip_id'.");
         }
 
       } catch (error) {
         console.error("Critical Network Failure:", error);
-        Alert.alert("Network Error", "Cannot reach the Keke server. Check your internet/IP.");
+        Alert.alert("Network Error", "Cannot reach the Keke server.");
       }
-
     } else {
       Alert.alert("Selection Required", "Please select locations from the suggestions list.");
     }
   };
-  // Good fix on this check—it's much safer now.
+
   const isButtonDisabled = !pickupCoords.lat || !dropoffCoords.lat;
+
+  // ... rest of your return/JSX code
 
   return (
     <SafeAreaView style={styles.safeArea}>

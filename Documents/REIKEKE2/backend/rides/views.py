@@ -4,12 +4,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .utils import RippleSearch, calculate_haversine_distance, fare_estimator
 from decimal import Decimal
-from . models import Trips, Status, PriceConfig
+from . models import Trips, Status,  PriceConfig
 from .serializers import DriverStatusSerializer, DriverLocationSerializer, TripEstimateSerializer, TripRequestSerializer
 from django.db import transaction
 from datetime import timezone
 from django.utils import timezone
 from rest_framework import status
+import math
 
 # Create your views here.
 
@@ -354,40 +355,50 @@ class TripRequestView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        print("\n=== BACKEND REQUEST RECEIVED ===")
-        print(f"User: {request.user}")
-        print(f"Data: {request.data}")
-
-        serializer = TripRequestSerializer(data=request.data)
+        data = request.data
         
-        if serializer.is_valid():
-            print("✅ Serializer is Valid")
+        try:
+            # 1. Get the Gatekeeper (PriceConfig)
+            config = PriceConfig.objects.filter(is_active=True).first()
+            if not config:
+                return Response({"error": "Pricing not configured"}, status=400)
+
+            # 2. Calculate Distance (KM)
+            dist_km = calculate_haversine_distance(
+                data['pickup_lat'], data['pickup_lng'],
+                data['dropoff_lat'], data['dropoff_lng']
+            )
             
-            # For now, let's fake the variables to avoid the 'PriceConfig' crash
-            try:
-                # We log the values to verify math later
-                p_lat = serializer.validated_data['pickup_lat']
-                p_lng = serializer.validated_data['pickup_lng']
-                print(f"Captured Coords: {p_lat}, {p_lng}")
+            # 3. Calculate Fare using your model's logic
+            # Price = Base + (KM * Distance Price)
+            raw_fare = Decimal(config.base_fare) + (Decimal(dist_km) * Decimal(config.distance_price))
+            
+            # Ensure it doesn't fall below min_fare
+            final_fare = max(raw_fare, Decimal(config.min_fare))
 
-                # TEMPORARY: Create trip without PriceConfig for verification
-                # If your model REQUIRES price_config, we use a 'dummy' or null
-                print("Attempting to save Trip to DB...")
-                
-                # --- COMMENTED OUT LOGIC TO PREVENT CRASH ---
-                # distance = calculate_haversine_distance(...)
-                # trip = Trips.objects.create(...) 
-                # --------------------------------------------
+            # 4. Create the Trip with ALL required fields
+            # Note: The 'otp' is generated automatically in your model's save()
+            trip = Trips.objects.create(
+                rider=request.user.rider_profile, # Assumes 1-to-1 link on User
+                pickup_location_name=data['pickup_location_name'],
+                dropoff_location_name=data['dropoff_location_name'],
+                pickup_lat=data['pickup_lat'],
+                pickup_lng=data['pickup_lng'],
+                dropoff_lat=data['dropoff_lat'],
+                dropoff_lng=data['dropoff_lng'],
+                price_config=config,
+                total_distance=Decimal(dist_km),
+                final_fare=final_fare,
+                status=Status.SEARCHING
+            )
 
-                return Response({
-                    "status": "DEBUG_MODE",
-                    "message": "Backend reached successfully!",
-                    "received_data": serializer.validated_data
-                }, status=status.HTTP_200_OK)
+            return Response({
+                "trip_id": str(trip.id),
+                "fare": float(final_fare),
+                "otp": trip.otp, # Usually you don't send this to rider yet, but good for debug
+                "status": trip.status
+            }, status=201)
 
-            except Exception as e:
-                print(f"❌ LOGIC ERROR: {str(e)}")
-                return Response({"error": str(e)}, status=500)
-        else:
-            print(f"❌ SERIALIZER INVALID: {serializer.errors}")
-            return Response(serializer.errors, status=400)git 
+        except Exception as e:
+            print(f"TRIP CREATION FAILED: {str(e)}")
+            return Response({"error": "Failed to initiate trip"}, status=500)
