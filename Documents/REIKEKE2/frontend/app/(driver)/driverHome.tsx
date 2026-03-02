@@ -7,14 +7,16 @@ import {
   Switch, 
   SafeAreaView, 
   StatusBar,
-  Alert 
+  Alert ,
+  ActivityIndicator
 } from 'react-native';
 import { Phone, List, Play, CheckCircle, XCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { useRouter } from 'expo-router'; 
 
 // Make sure you import the new getCurrentTrip function!
-import { updateDriverStatus, getCurrentTrip } from '../../services/endpoints/driver'; 
+import { updateDriverStatus, getCurrentTrip  } from '../../services/endpoints/driver'; 
+import { cancelTrip } from '@/services/endpoints/rider';
 
 interface DriverHomeProps {
   phone: string;
@@ -61,6 +63,50 @@ export default function DriverHome({ phone }: DriverHomeProps) {
       Alert.alert("Error", "Failed to logout. Try again.");
     }
   };
+
+  const [cancelling, setCancelling] = useState(false);
+
+  const handleCancelTrip = async () => {
+  if (!activeTrip) return;
+
+  Alert.alert(
+    "Cancel Trip",
+    "Are you sure you want to cancel this trip?",
+    [
+      { text: "No", style: "cancel" },
+      {
+        text: "Yes, Cancel",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setCancelling(true);
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) {
+              Alert.alert("Error", "Please login again");
+              return;
+            }
+
+            const result = await cancelTrip(activeTrip.trip_id, token);
+
+            if (result.status === "success") {
+              setActiveTrip(null);
+              Alert.alert("Success", "Trip cancelled successfully");
+              // Optionally refresh online status
+              await checkActiveTrip();
+            } else {
+              Alert.alert("Error", result.error || "Failed to cancel trip");
+            }
+          } catch (error) {
+            Alert.alert("Error", "Network error. Please try again.");
+          } finally {
+            setCancelling(false);
+          }
+        }
+      }
+    ]
+  );
+};
+
 
   const toggleStatus = async (value: boolean) => {
     // Prevent going offline if there is an active ride
@@ -168,13 +214,20 @@ export default function DriverHome({ phone }: DriverHomeProps) {
                 </Pressable>
               )}
 
-              <Pressable 
-                style={[styles.actionButton, {backgroundColor: '#EF4444'}]} 
-                onPress={() => Alert.alert('Cancel Trip', 'Are you sure?', [{text: 'No'}, {text: 'Yes', onPress: () => console.log('Cancel Trip')}])}
-              >
-                <XCircle size={20} color="#FFF" />
-                <Text style={styles.actionButtonText}>Cancel</Text>
-              </Pressable>
+              <Pressable
+  style={[styles.actionButton, { backgroundColor: '#EF4444', opacity: cancelling ? 0.7 : 1 }]}
+  onPress={handleCancelTrip}
+  disabled={cancelling}
+>
+  {cancelling ? (
+    <ActivityIndicator size="small" color="#FFF" />
+  ) : (
+    <>
+      <XCircle size={20} color="#FFF" />
+      <Text style={styles.actionButtonText}>Cancel</Text>
+    </>
+  )}
+</Pressable>
             </View>
           </View>
         )}

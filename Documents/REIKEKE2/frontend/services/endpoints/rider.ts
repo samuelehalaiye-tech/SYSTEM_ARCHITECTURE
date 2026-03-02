@@ -82,7 +82,7 @@ export const getTripStatus = async (tripId: string, token: string) => {
   }
 };
 
-export const cancelRide = async (tripId: string, token: string) => {
+export const cancelTrip = async (tripId: string, token: string) => {
   try {
     const response = await fetch(`${BASE_URL}/rides/trips/${tripId}/cancel/`, {
       method: 'POST',
@@ -93,9 +93,7 @@ export const cancelRide = async (tripId: string, token: string) => {
     });
     return await response.json();
   } catch (error) {
-    console.error("Cancel Ride Error:", error);
+    console.error("Cancel Trip Error:", error);
     throw error;
   }
 };
-
-

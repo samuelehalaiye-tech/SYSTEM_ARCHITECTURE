@@ -1,25 +1,66 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, Pressable, StyleSheet, StatusBar, Alert, KeyboardAvoidingView, Platform 
+  View, Text, Pressable, StyleSheet, StatusBar, Alert, KeyboardAvoidingView, Platform,ActivityIndicator
 } from 'react-native';
 // Use the modern Safe Area context
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
-import { getTripStatus } from '@/services/endpoints/rider'; 
+import { getTripStatus, cancelTrip } from '@/services/endpoints/rider'; 
 import { BASE_URL } from '@/services/config';
 
 export default function PassengerHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { active_trip_id } = useLocalSearchParams();
-  
+  const [cancelling, setCancelling] = useState(false);
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
   const [pickupCoords, setPickupCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [dropoffCoords, setDropoffCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [activeTrip, setActiveTrip] = useState<any>(null);
+
+  const handleCancelRide = async () => {
+  if (!activeTrip) return;
+
+  Alert.alert(
+    "Cancel Ride",
+    "Are you sure you want to cancel this ride?",
+    [
+      { text: "No", style: "cancel" },
+      {
+        text: "Yes, Cancel",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            setCancelling(true);
+            const token = await AsyncStorage.getItem('userToken');
+            if (!token) {
+              Alert.alert("Error", "Please login again");
+              return;
+            }
+
+            const result = await cancelTrip(activeTrip.trip_id, token);
+
+            if (result.status === "success") {
+              setActiveTrip(null);
+              router.setParams({ active_trip_id: '' });
+              Alert.alert("Success", "Ride cancelled successfully");
+            } else {
+              Alert.alert("Error", result.error || "Failed to cancel ride");
+            }
+          } catch (error) {
+            Alert.alert("Error", "Network error. Please try again.");
+          } finally {
+            setCancelling(false);
+          }
+        }
+      }
+    ]
+  );
+};
+
   const handleConfirm = async () => {
   if (!pickupCoords.lat || !dropoffCoords.lat) {
     Alert.alert("Error", "Please select valid locations.");
@@ -68,28 +109,34 @@ export default function PassengerHome() {
 };
   // Polling Logic
   useEffect(() => {
-    let pollInterval: any;
-    const runPolling = async () => {
-      const token = await AsyncStorage.getItem('userToken');
-      const tripId = active_trip_id || (activeTrip?.id);
-      if (token && tripId) {
-        try {
-          const result = await getTripStatus(tripId as string, token);
+  let pollInterval: any;
+  const runPolling = async () => {
+    const token = await AsyncStorage.getItem('userToken');
+    const tripId = active_trip_id || (activeTrip?.id);
+    if (token && tripId) {
+      try {
+        const result = await getTripStatus(tripId as string, token);
+        if (result.status === 'CANCELLED') {
+          setActiveTrip(null);
+          router.setParams({ active_trip_id: '' });
+          clearInterval(pollInterval);
+        } else {
           setActiveTrip(result);
           if (result.status === 'COMPLETED') {
             clearInterval(pollInterval);
             setTimeout(() => { setActiveTrip(null); router.setParams({ active_trip_id: '' }); }, 5000);
           }
-        } catch (e) { console.error("Polling error:", e); }
-      }
-    };
-
-    if (active_trip_id || activeTrip) {
-      runPolling();
-      pollInterval = setInterval(runPolling, 5000);
+        }
+      } catch (e) { console.error("Polling error:", e); }
     }
-    return () => clearInterval(pollInterval);
-  }, [active_trip_id, activeTrip?.id]);
+  };
+
+  if (active_trip_id || activeTrip?.id) {
+    runPolling();
+    pollInterval = setInterval(runPolling, 5000);
+  }
+  return () => clearInterval(pollInterval);
+}, [active_trip_id, activeTrip?.id]);
 
   const isButtonDisabled = !pickupCoords.lat || !dropoffCoords.lat || !!activeTrip;
 
@@ -108,39 +155,55 @@ export default function PassengerHome() {
           
           {/* LIVE DASHBOARD */}
           {activeTrip && (
-            <View style={styles.statusCard}>
-              <View style={styles.dashboardHeader}>
-                <View style={styles.statusBadge}>
-                  <Text style={styles.statusBadgeText}>{activeTrip.status}</Text>
-                </View>
-                <Pressable onPress={() => Alert.alert("SOS", "Alerting Security...")} style={styles.sosButton}>
-                  <Text style={styles.sosText}>SOS</Text>
-                </Pressable>
-              </View>
+  <View style={styles.statusCard}>
+    <View style={styles.dashboardHeader}>
+      <View style={styles.statusBadge}>
+        <Text style={styles.statusBadgeText}>{activeTrip.status}</Text>
+      </View>
+      <Pressable onPress={() => Alert.alert("SOS", "Alerting Security...")} style={styles.sosButton}>
+        <Text style={styles.sosText}>SOS</Text>
+      </Pressable>
+    </View>
 
-              {/* LOGIC FIX: Show OTP for both ACCEPTED and STARTED */}
-              {(activeTrip.status === 'ACCEPTED' || activeTrip.status === 'STARTED') && (
-                <View>
-                  <Text style={styles.mainStatusText}>
-                    {activeTrip.status === 'ACCEPTED' ? "🚕 Driver is arriving" : "✅ Trip in Progress"}
-                  </Text>
-                  
-                  <View style={styles.otpContainer}>
-                    <Text style={styles.otpLabel}>
-                      {activeTrip.status === 'ACCEPTED' 
-                        ? "GIVE PIN TO DRIVER TO START:" 
-                        : "GIVE PIN TO DRIVER TO END:"}
-                    </Text>
-                    <Text style={styles.otpValue}>{activeTrip.otp || "----"}</Text>
-                  </View>
-                </View>
-              )}
+    {activeTrip.status !== 'COMPLETED' ? (
+      <View>
+        <Text style={styles.mainStatusText}>
+          {activeTrip.status === 'ACCEPTED' ? "🚕 Driver is arriving" : 
+           activeTrip.status === 'STARTED' ? "✅ Trip in Progress" : 
+           "🔍 Searching for nearby Keke..."}
+        </Text>
+        
+        {/* OTP Section: Only shows once a driver is involved */}
+        {(activeTrip.status === 'ACCEPTED' || activeTrip.status === 'STARTED') && (
+          <View style={styles.otpContainer}>
+            <Text style={styles.otpLabel}>
+              {activeTrip.status === 'ACCEPTED' 
+                ? "GIVE PIN TO DRIVER TO START:" 
+                : "GIVE PIN TO DRIVER TO END:"}
+            </Text>
+            <Text style={styles.otpValue}>{activeTrip.otp || "----"}</Text>
+          </View>
+        )}
 
-              {activeTrip.status === 'COMPLETED' && (
-                <Text style={styles.successText}>✨ Trip Finished. Thank you!</Text>
-              )}
-            </View>
+        {/* Cancel Button: Now visible for all active states */}
+        <Pressable
+          onPress={handleCancelRide}
+          style={[styles.cancelButton, cancelling && styles.buttonDisabled2]}
+          disabled={cancelling}
+        >
+          {cancelling ? (
+            <ActivityIndicator size="small" color="#FFF" />
+          ) : (
+            <Text style={styles.cancelButtonText}>Cancel Ride</Text>
           )}
+        </Pressable>
+      </View>
+    ) : (
+      /* Completion Message */
+      <Text style={styles.successText}>✨ Trip Finished. Thank you!</Text>
+    )}
+  </View>
+)}
 
           {/* INPUTS - Only show if no active trip */}
           {!activeTrip && (
@@ -206,6 +269,21 @@ export default function PassengerHome() {
 }
 
 const styles = StyleSheet.create({
+  cancelButton: {
+  backgroundColor: '#EF4444',
+  paddingVertical: 12,
+  borderRadius: 10,
+  alignItems: 'center',
+  marginTop: 10
+},
+cancelButtonText: {
+  color: '#FFFFFF',
+  fontWeight: 'bold',
+  fontSize: 16
+},
+buttonDisabled2: {
+  opacity: 0.5
+},
   safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
   header: { 
     backgroundColor: '#FF8C00', 
