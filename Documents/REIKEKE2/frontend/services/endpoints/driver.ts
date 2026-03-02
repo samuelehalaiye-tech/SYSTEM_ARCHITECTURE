@@ -92,6 +92,8 @@ export const getCurrentTrip = async (token: string) => {
       },
     });
 
+    
+
     if (!response.ok) {
       throw new Error('Failed to fetch current trip state');
     }
