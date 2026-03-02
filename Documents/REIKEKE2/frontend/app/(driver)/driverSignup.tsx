@@ -73,7 +73,7 @@ export default function DriverSignupPage() {
         style={styles.container}
       >
         <View style={styles.header}>
-          <Pressable onPress={() => router.replace('/(auth)')} style={styles.backButton}>
+          <Pressable onPress={() => router.push('/(auth)')} style={styles.backButton}>
             <ArrowLeft size={24} color="#FF8C00" />
             <Text style={styles.backText}>Back</Text>
           </Pressable>

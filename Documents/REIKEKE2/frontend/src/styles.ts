@@ -4,7 +4,7 @@ export const authStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#FFF' },
   container: { flex: 1 },
   header: { padding: 16 },
-  backButton: { flexDirection: 'row', alignItems: 'center' },
+  backButton: { flexDirection: 'row', alignItems: 'center',marginTop:70 },
   backText: { color: '#FF8C00', fontSize: 16, marginLeft: 8 },
   scrollContent: { flexGrow: 1, justifyContent: 'center', padding: 24 },
   formWrapper: { width: '100%', maxWidth: 400, alignSelf: 'center' },

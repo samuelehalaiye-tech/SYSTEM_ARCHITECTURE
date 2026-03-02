@@ -4,14 +4,14 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from .utils import BlastSearch, calculate_haversine_distance, fare_estimator
 from decimal import Decimal
-from . models import Trips, Status,  PriceConfig
+from . models import Trips, Status,  PriceConfig,SafetyAlert
 from .serializers import DriverStatusSerializer, DriverLocationSerializer, TripEstimateSerializer, TripRequestSerializer
 from django.db import transaction
-from datetime import timezone
+from datetime import timedelta
 from django.utils import timezone
 from rest_framework import status
 
-from rest_framework import status
+import random
 # Create your views here.
 
 
@@ -248,15 +248,16 @@ class TripCancelView(APIView):
 
                 # 2. Check if the Driver is cancelling (Your original logic)
                 elif hasattr(user, 'driver_profile') and trip.driver == user.driver_profile:
-                    if trip.status in [Status.ACCEPTED, Status.ONGOING]: # Use ONGOING instead of STARTED
+                    if trip.status in [Status.ACCEPTED, Status.STARTED]: # Use STARTED to match your status model
                         trip.status = Status.CANCELLED
                         trip.save()
                         
-                        driver_profile = user.driver_profile
-                        driver_profile.is_online = True
-                        driver_profile.save()
+                        # Define the profile here so it doesn't crash
+                        driver_prof = user.driver_profile 
+                        driver_prof.is_online = True
+                        driver_prof.save()
                         
-                        return Response({"status": "success", "message": "Trip cancelled. You are back online."})
+                        return Response({"status": "success", "message": "Trip cancelled."})
                 
                 return Response({"error": "Unauthorized to cancel this trip."}, status=403)
 
@@ -478,35 +479,45 @@ class TripStatusView(APIView):
 
     def get(self, request, trip_id):
         try:
-            # We fetch the trip and the driver details (if any)
-            trip = Trips.objects.select_related('driver__user').get(id=trip_id)
+            # We fetch the trip and ensure it belongs to the requesting rider
+            trip = Trips.objects.select_related('driver__user').get(id=trip_id, rider__user=request.user)
             
             response_data = {
+                'trip_id': str(trip.id),
                 'status': trip.status,
-                'trip_id': trip.id,
+                'final_fare': trip.final_fare, # Good to show the rider what they will pay
             }
 
-            # If a driver has accepted, send their details so the UI can update
-            if trip.status == Status.ACCEPTED and trip.driver:
+            # If the driver has accepted OR the trip has started, send driver info & the current OTP
+            if trip.status in [Status.ACCEPTED, Status.STARTED] and trip.driver:
                 response_data['driver'] = {
-                    'name': trip.driver.user.get_full_name(),
-                    'phone': trip.driver.user.phone_number,
+                    'name': trip.driver.user.get_full_name() or trip.driver.user.username,
+                    'phone': getattr(trip.driver.user, 'phone_number', 'N/A'),
                     'keke_plate': getattr(trip.driver, 'plate_number', 'N/A'),
-                    'lat': trip.driver.current_lat,
-                    'lng': trip.driver.current_lng,
                 }
-                # Also give the Rider their OTP to show on the "Driver Found" screen
+                
+                # THE MAGIC: 
+                # If status is ACCEPTED, this is the Start PIN.
+                # If status is STARTED, this is the newly generated End PIN.
                 response_data['otp'] = trip.otp
 
-            return Response(response_data)
+            return Response(response_data, status=200)
 
         except Trips.DoesNotExist:
             return Response({'error': 'Trip not found'}, status=404)
         
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from django.utils import timezone
+from datetime import timedelta
+# (Assuming Trips and Status are imported here)
+
 class AvailableOffersView(APIView):
     """
-    Returns a list of trips that are currently SEARCHING and 
-    have NOT been rejected by this driver.
+    Returns a list of trips that are currently SEARCHING, 
+    have NOT been rejected by this driver, 
+    and were created within the last 30 minutes.
     """
     permission_classes = [IsAuthenticated]
 
@@ -516,13 +527,18 @@ class AvailableOffersView(APIView):
         except AttributeError:
             return Response({'error': 'Only drivers can view offers'}, status=403)
 
+        # Calculate the cutoff time (30 minutes ago)
+        thirty_minutes_ago = timezone.now() - timedelta(minutes=30)
+
         # 1. Filter trips: 
         # - Status is SEARCHING
         # - Not already assigned to a driver
+        # - Created within the last 30 minutes (<-- NEW)
         # - NOT in the rejected_by list for this specific driver
         offers = Trips.objects.filter(
             status=Status.SEARCHING,
-            driver__isnull=True
+            driver__isnull=True,
+            created_at__gte=thirty_minutes_ago  # 'gte' means Greater Than or Equal to
         ).exclude(rejected_by=driver_profile).order_by('-created_at')
 
         # 2. Map the data to the format your React Native Frontend expects
@@ -540,3 +556,111 @@ class AvailableOffersView(APIView):
             })
 
         return Response(data)
+    
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework.permissions import IsAuthenticated
+from .models import Trips, Status
+
+class CurrentActiveTripView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            # Look for an active trip assigned to this driver
+            # We specifically check for ACCEPTED or STARTED states based on your audit
+            active_trip = Trips.objects.filter(
+                driver__user=request.user, 
+                status__in=[Status.ACCEPTED, Status.STARTED]
+            ).first()
+
+            if not active_trip:
+                return Response({"active": False}, status=200)
+
+            return Response({
+                "active": True,
+                "trip_id": str(active_trip.id),
+                "status": active_trip.status,
+                "rider_name": active_trip.rider.user.get_full_name() or active_trip.rider.user.username,
+                # We pull the 6-digit OTP that was generated by your Trips.save() override
+                "otp": active_trip.otp, 
+            }, status=200)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
+
+
+
+
+from django.db import transaction # <--- MANDATORY IMPORT
+from rest_framework.permissions import IsAuthenticated
+
+class VerifyTripOTPView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, trip_id):
+        action = request.data.get('action') 
+        input_otp = request.data.get('otp')
+
+        try:
+            # 1. Start the transaction block here
+            with transaction.atomic():
+                # 2. This line WILL NOT CRASH anymore once inside atomic()
+                trip = Trips.objects.select_for_update().get(
+                    id=trip_id, 
+                    driver__user=request.user
+                )
+
+                # 3. VERIFY PIN
+                if str(trip.otp) != str(input_otp):
+                    return Response({"error": "Invalid PIN."}, status=400)
+
+                # 4. HANDLE ACTIONS
+                if action == 'start':
+                    if trip.status != Status.ACCEPTED:
+                        return Response({"error": "Trip not in 'Accepted' state."}, status=400)
+                    
+                    trip.status = Status.STARTED
+                    trip.rotate_otp() # Generate the completion PIN
+                    trip.save() 
+                    
+                    return Response({
+                        "message": "Ride Started! New PIN generated.",
+                        "next_otp_for_testing": trip.otp 
+                    })
+
+                elif action == 'end':
+                    if trip.status != Status.STARTED:
+                        return Response({"error": "Ride must be started first."}, status=400)
+
+                    trip.status = Status.COMPLETED
+                    trip.save() 
+
+                    return Response({"message": "Ride Completed Successfully."})
+
+        except Trips.DoesNotExist:
+            return Response({"error": "Trip not found or not assigned to you."}, status=404)
+        except Exception as e:
+            # This logs the real error to your VS Code / CMD terminal
+            print(f"CRITICAL ERROR IN VERIFY: {str(e)}")
+            return Response({"error": "Server error during verification."}, status=500)
+
+class TriggerSOSView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, trip_id):
+        try:
+            trip = Trips.objects.get(id=trip_id)
+            # Log the SOS in the database
+            alert = SafetyAlert.objects.create(
+                trip=trip,
+                user=request.user,
+                lat=request.data.get('lat'),
+                lng=request.data.get('lng')
+            )
+            # FUTURE: Trigger SMS/Email to your Yola security partner here
+            print(f"!!! SOS TRIGGERED !!! Trip: {trip_id} by {request.user.username}")
+            
+            return Response({"status": "success", "message": "Emergency alert logged."})
+        except Trips.DoesNotExist:
+            return Response({"error": "Trip not found"}, status=404)

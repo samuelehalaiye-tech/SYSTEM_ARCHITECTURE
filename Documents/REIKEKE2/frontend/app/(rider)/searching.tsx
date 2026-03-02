@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { cancelRide, checkTripStatus } from '@/services/endpoints/rider';
+import { cancelRide, getTripStatus } from '@/services/endpoints/rider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SearchingForDriver() {
@@ -19,13 +19,16 @@ export default function SearchingForDriver() {
     const pollInterval = setInterval(async () => {
       const token = await AsyncStorage.getItem('userToken');
       if (token && trip_id) {
-        const result = await checkTripStatus(trip_id as string, token);
+        const result = await getTripStatus(trip_id as string, token);
         
         if (result.status === 'ACCEPTED') {
-          clearInterval(pollInterval);
-          // Move to the active trip screen (Phase 3)
-          
-        }
+  clearInterval(pollInterval);
+  // Send them back home with the Trip ID as a parameter
+  router.replace({
+    pathname: '/(rider)/riderHome',
+    params: { active_trip_id: trip_id }
+  });
+}
       }
     }, 5000); // Poll every 5 seconds for Yola network resilience
 

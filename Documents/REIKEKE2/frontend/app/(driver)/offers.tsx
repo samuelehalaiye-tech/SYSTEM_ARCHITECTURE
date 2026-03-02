@@ -54,13 +54,16 @@ export default function DriverOffers({ onBack }: { onBack: () => void }) {
   };
 
   const handleReject = async (tripId: string) => {
+    // 🔥 OPTIMISTIC UI: Remove it from the screen immediately!
+    // No waiting for AsyncStorage or the network.
+    setOffers(prev => prev.filter(offer => offer.id !== tripId));
+
+    // Now handle the backend sync silently in the background
     const token = await AsyncStorage.getItem('userToken');
     if (!token) return;
 
     try {
       await rejectRide(tripId, token);
-      // Optimistic UI update: remove it immediately
-      setOffers(prev => prev.filter(offer => offer.id !== tripId));
     } catch (error) {
       console.error("Reject Error:", error);
     }

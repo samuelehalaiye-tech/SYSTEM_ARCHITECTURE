@@ -1,67 +1,39 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
-  View, 
-  Text, 
-  TextInput, 
-  Pressable, 
-  StyleSheet, 
-  SafeAreaView, 
-  StatusBar,
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
+  View, Text, Pressable, StyleSheet, StatusBar, Alert, KeyboardAvoidingView, Platform 
 } from 'react-native';
+// Use the modern Safe Area context
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { MapPin, Navigation } from 'lucide-react-native';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
-import { requestRide } from '@/services/endpoints/rider';
+import { getTripStatus } from '@/services/endpoints/rider'; 
 import { BASE_URL } from '@/services/config';
-interface PlaceDetails {
-  geometry: {
-    location: {
-      lat: number;
-      lng: number;
-    };
-  };
-}
-
-interface PassengerHomeProps {
-  onConfirmRide: (rideData: {
-    pickup_location_name: string;
-    dropoff_location_name: string;
-    pickup_lat: number | null;
-    pickup_lng: number | null;
-    dropoff_lat: number | null;
-    dropoff_lng: number | null;
-  }) => void;
-}
 
 export default function PassengerHome() {
+  const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { active_trip_id } = useLocalSearchParams();
+  
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
-  const router = useRouter();
-  
   const [pickupCoords, setPickupCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [dropoffCoords, setDropoffCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
-
- const handleConfirm = async () => {
-  // Guard clause: Don't even try if coords are missing
+  const [activeTrip, setActiveTrip] = useState<any>(null);
+  const handleConfirm = async () => {
   if (!pickupCoords.lat || !dropoffCoords.lat) {
-    Alert.alert("Error", "Please select locations from the suggestions list.");
+    Alert.alert("Error", "Please select valid locations.");
     return;
   }
 
   try {
     const token = await AsyncStorage.getItem('userToken');
-    const fullUrl = `${BASE_URL}/rides/estimate/`; 
-    
-    const response = await fetch(fullUrl, {
+
+    const response = await fetch(`${BASE_URL}/rides/estimate/`, {
       method: 'POST',
-      headers: { 
+      headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}` 
+        'Authorization': `Bearer ${token}`,
       },
       body: JSON.stringify({
         pickup_lat: pickupCoords.lat,
@@ -74,13 +46,12 @@ export default function PassengerHome() {
     const result = await response.json();
 
     if (response.ok && result.status === "success") {
-      // Logic for Phase 3: Passing data to the Confirmation screen
       router.push({
         pathname: "/(rider)/riderConfirm",
         params: {
           pickup,
           dropoff,
-          price: result.estimate.estimated_fare.toString(), 
+          price: result.estimate.estimated_fare.toString(),
           distance: result.estimate.distance_km.toString(),
           pLat: pickupCoords.lat?.toString() ?? '',
           pLng: pickupCoords.lng?.toString() ?? '',
@@ -89,213 +60,186 @@ export default function PassengerHome() {
         }
       });
     } else {
-      Alert.alert("Service Unavailable", result.error || "Could not calculate fare.");
+      Alert.alert("Error", result.error || "Could not calculate fare.");
     }
   } catch (error) {
-    Alert.alert("Connection Error", "Ensure your Django server is accessible.");
+    Alert.alert("Connection Error", "Check your server.");
   }
 };
+  // Polling Logic
+  useEffect(() => {
+    let pollInterval: any;
+    const runPolling = async () => {
+      const token = await AsyncStorage.getItem('userToken');
+      const tripId = active_trip_id || (activeTrip?.id);
+      if (token && tripId) {
+        try {
+          const result = await getTripStatus(tripId as string, token);
+          setActiveTrip(result);
+          if (result.status === 'COMPLETED') {
+            clearInterval(pollInterval);
+            setTimeout(() => { setActiveTrip(null); router.setParams({ active_trip_id: '' }); }, 5000);
+          }
+        } catch (e) { console.error("Polling error:", e); }
+      }
+    };
 
-  const isButtonDisabled = !pickupCoords.lat || !dropoffCoords.lat || !pickup || !dropoff;
+    if (active_trip_id || activeTrip) {
+      runPolling();
+      pollInterval = setInterval(runPolling, 5000);
+    }
+    return () => clearInterval(pollInterval);
+  }, [active_trip_id, activeTrip?.id]);
 
-  // ... rest of your return/JSX code
+  const isButtonDisabled = !pickupCoords.lat || !dropoffCoords.lat || !!activeTrip;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <View style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#FF8C00" />
       
-      {/* Header */}
-      <View style={styles.header}>
+      {/* Dynamic Header padding based on device notch */}
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.headerTitle}>Keke Napep</Text>
-        <Text style={styles.headerSubtitle}>Book your ride</Text>
+        <Text style={styles.headerSubtitle}>Yola Private Engine</Text>
       </View>
 
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView 
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled" // Important so taps on suggestions register
-        >
-          <View style={styles.inputCard}>
-            {/* Pickup Input Wrapper with Z-Index */}
-            <View style={{ zIndex: 2, marginBottom: 10 }}>
-              <GooglePlacesAutocomplete
-                placeholder="Enter pickup location"
-                fetchDetails={true}
-                debounce={400}
-                onPress={(data, details = null) => {
-                  setPickup(data.description);
-                  if (details) {
-                    setPickupCoords({
-                      lat: details.geometry.location.lat,
-                      lng: details.geometry.location.lng
-                    });
-                  }
-                }}
-                query={{ 
-                  key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, 
-                  language: 'en', 
-                  components: 'country:ng' 
-                }}
-                enablePoweredByContainer={false}
-                listEmptyComponent={<View />} 
-        suppressDefaultStyles={true}
-                styles={{ 
-                  textInput: styles.input,
-                  listView: { 
-            backgroundColor: 'white', 
-            position: 'absolute', 
-            top: 50, 
-            zIndex: 10,
-            elevation: 5 
-          }
-                }}
-              disableScroll={true}/>
-            </View>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
+        <View style={styles.container}>
+          
+          {/* LIVE DASHBOARD */}
+          {activeTrip && (
+            <View style={styles.statusCard}>
+              <View style={styles.dashboardHeader}>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusBadgeText}>{activeTrip.status}</Text>
+                </View>
+                <Pressable onPress={() => Alert.alert("SOS", "Alerting Security...")} style={styles.sosButton}>
+                  <Text style={styles.sosText}>SOS</Text>
+                </Pressable>
+              </View>
 
-            {/* Dropoff Input Wrapper with lower Z-Index */}
-            <View style={{ zIndex: 1 }}>
-              <GooglePlacesAutocomplete
-                placeholder="Enter dropoff location"
-                fetchDetails={true}
-                debounce={400}
-                onPress={(data, details = null) => {
-                  setDropoff(data.description);
-                  if (details) {
-                    setDropoffCoords({
-                      lat: details.geometry.location.lat,
-                      lng: details.geometry.location.lng
-                    });
-                  }
-                }}
-                query={{ 
-                  key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, 
-                  language: 'en', 
-                  components: 'country:ng' 
-                }}
-                enablePoweredByContainer={false}
-                 listEmptyComponent={<View />} 
-        suppressDefaultStyles={true}
-                styles={{ 
-                  textInput: styles.input,
-                  listView: { 
-            backgroundColor: 'white', 
-            position: 'absolute', 
-            top: 50, 
-            zIndex: 10,
-            elevation: 5 
-          }
-                }}
-             disableScroll={true}/>
-            </View>
-          </View>
+              {/* LOGIC FIX: Show OTP for both ACCEPTED and STARTED */}
+              {(activeTrip.status === 'ACCEPTED' || activeTrip.status === 'STARTED') && (
+                <View>
+                  <Text style={styles.mainStatusText}>
+                    {activeTrip.status === 'ACCEPTED' ? "🚕 Driver is arriving" : "✅ Trip in Progress"}
+                  </Text>
+                  
+                  <View style={styles.otpContainer}>
+                    <Text style={styles.otpLabel}>
+                      {activeTrip.status === 'ACCEPTED' 
+                        ? "GIVE PIN TO DRIVER TO START:" 
+                        : "GIVE PIN TO DRIVER TO END:"}
+                    </Text>
+                    <Text style={styles.otpValue}>{activeTrip.otp || "----"}</Text>
+                  </View>
+                </View>
+              )}
 
-          {/* Confirm Button */}
+              {activeTrip.status === 'COMPLETED' && (
+                <Text style={styles.successText}>✨ Trip Finished. Thank you!</Text>
+              )}
+            </View>
+          )}
+
+          {/* INPUTS - Only show if no active trip */}
+          {!activeTrip && (
+            <View style={styles.inputCard}>
+               <GooglePlacesAutocomplete
+                  placeholder="Pickup Location"
+                  fetchDetails={true}
+                  onPress={(data, details = null) => {
+                    setPickup(data.description);
+                    if (details) setPickupCoords({ lat: details.geometry.location.lat, lng: details.geometry.location.lng });
+                  }}
+                  query={{ key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, language: 'en', components: 'country:ng' }}
+                  enablePoweredByContainer={false}
+                  suppressDefaultStyles={true}
+                  styles={{ textInput: styles.input, listView: styles.listView }}
+                />
+                <View style={{ height: 15 }} />
+                <GooglePlacesAutocomplete
+                  placeholder="Where to?"
+                  fetchDetails={true}
+                  onPress={(data, details = null) => {
+                    setDropoff(data.description);
+                    if (details) setDropoffCoords({ lat: details.geometry.location.lat, lng: details.geometry.location.lng });
+                  }}
+                  query={{ key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, language: 'en', components: 'country:ng' }}
+                  enablePoweredByContainer={false}
+                  suppressDefaultStyles={true}
+                  styles={{ textInput: styles.input, listView: styles.listView }}
+                />
+            </View>
+          )}
+
           <Pressable 
             onPress={handleConfirm}
             disabled={isButtonDisabled}
-            style={({ pressed }) => [
-              styles.confirmButton,
-              isButtonDisabled ? styles.buttonDisabled : (pressed && styles.buttonPressed)
-            ]}
+            style={[styles.confirmButton, isButtonDisabled && styles.buttonDisabled]}
           >
-            <Text style={styles.confirmButtonText}>Confirm Ride</Text>
+            <Text style={styles.confirmButtonText}>
+              {activeTrip ? 'Active Trip' : 'Confirm Ride'}
+            </Text>
           </Pressable>
-
-          {/* Temporary Logout Button for Debugging */}
           <Pressable 
-            onPress={async () => {
-              await AsyncStorage.removeItem('userToken');
-              router.replace('/(auth)');
-            }} 
-            style={{
-              backgroundColor: '#FF8C00',
-              paddingVertical: 15,
-              paddingHorizontal: 25,
-              borderRadius: 12, 
-              borderWidth: 2,
-              borderColor: '#E57C00',
-              alignItems: 'center',
-              justifyContent: 'center',
-              elevation: 3,
-            }}
-          >
-            <Text style={{ color: 'white', fontWeight: 'bold' }}>Clear Session & Logout</Text>
-          </Pressable>
-        </ScrollView>
+  onPress={async () => {
+    await AsyncStorage.removeItem('userToken');
+    router.replace('/(auth)');
+  }}
+  style={{
+    backgroundColor: '#EF4444',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 15
+  }}
+>
+  <Text style={{ color: 'white', fontWeight: 'bold' }}>
+    Logout
+  </Text>
+</Pressable>
+        </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: '#FFFFFF',
+  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  header: { 
+    backgroundColor: '#FF8C00', 
+    paddingHorizontal: 24, 
+    paddingBottom: 30, 
+    borderBottomLeftRadius: 30, 
+    borderBottomRightRadius: 30 
   },
-  header: {
-    backgroundColor: '#FF8C00',
-    padding: 24,
-    paddingTop: 40,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+  headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
+  headerSubtitle: { fontSize: 16, color: '#FFFFFF', opacity: 0.9 },
+  container: { flex: 1, padding: 20 },
+  inputCard: { 
+    backgroundColor: 'white', 
+    borderRadius: 16, 
+    padding: 16, 
+    elevation: 10, 
+    shadowColor: '#000', 
+    shadowOpacity: 0.1, 
+    shadowRadius: 10 
   },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#FFFFFF',
-    opacity: 0.9,
-    marginTop: 4,
-  },
-  container: {
-    padding: 24,
-    gap: 24,
-  },
-  inputCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#F3F4F6',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    minHeight: 180, // Added to ensure space for inputs
-  },
-  input: {
-    backgroundColor: '#F9FAFB',
-    padding: 14,
-    borderRadius: 10,
-    fontSize: 16,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    color: '#111827',
-  },
-  confirmButton: {
-    backgroundColor: '#FF8C00',
-    paddingVertical: 18,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-  },
-  buttonPressed: {
-    backgroundColor: '#FF7700',
-  },
-  buttonDisabled: {
-    backgroundColor: '#D1D5DB',
-  },
-  confirmButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
+  input: { backgroundColor: '#F3F4F6', padding: 12, borderRadius: 8, fontSize: 16 },
+  listView: { position: 'absolute', top: 50, left: 0, right: 0, backgroundColor: 'white', zIndex: 1000, elevation: 5 },
+  confirmButton: { backgroundColor: '#FF8C00', paddingVertical: 18, borderRadius: 12, alignItems: 'center', marginTop: 'auto' },
+  buttonDisabled: { backgroundColor: '#D1D5DB' },
+  confirmButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  statusCard: { backgroundColor: '#111827', padding: 20, borderRadius: 20 },
+  dashboardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  statusBadge: { backgroundColor: '#FF8C00', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 20 },
+  statusBadgeText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
+  sosButton: { backgroundColor: '#EF4444', padding: 10, borderRadius: 10 },
+  sosText: { color: 'white', fontWeight: 'bold' },
+  mainStatusText: { color: 'white', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
+  otpContainer: { marginTop: 20, padding: 20, backgroundColor: '#1F2937', borderRadius: 15, alignItems: 'center' },
+  otpLabel: { color: '#9CA3AF', fontSize: 11, marginBottom: 10 },
+  otpValue: { color: '#FF8C00', fontSize: 48, fontWeight: 'bold', letterSpacing: 10 },
+  successText: { color: '#10B981', textAlign: 'center', fontWeight: 'bold', fontSize: 18 }
 });
