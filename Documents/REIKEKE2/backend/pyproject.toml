@@ -3,12 +3,19 @@ name = "reikeke-backend"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    # Optional: You can move your requirements.txt dependencies here later
+    "Django==6.0.1",
+    "psycopg2-binary",
+    "dj-database-url",
+    "djangorestframework",
+    "djangorestframework-simplejwt",
+    "django-cors-headers",
+    "python-dotenv",
+    "whitenoise",
 ]
 
 [tool.vercel.scripts]
-build = "python manage.py migrate --noinput && python manage.py collectstatic --noinput --clear"
+# uv run ensures the commands are executed inside the environment where Django is installed
+build = "uv run python manage.py migrate --noinput && uv run python manage.py collectstatic --noinput --clear"
 
 [tool.vercel]
-# Tell Vercel exactly where to find your WSGI app
 entrypoint = "backend.wsgi:application"
