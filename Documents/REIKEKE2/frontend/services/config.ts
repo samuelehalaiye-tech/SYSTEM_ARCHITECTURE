@@ -1,5 +1,5 @@
-// 1. No trailing slash
-export const BASE_URL = "https://system-architecture-chi.vercel.app"; 
+// 1. No trailing slash — includes the versioned API path Django's urls.py actually expects
+export const BASE_URL = "https://system-architecture-chi.vercel.app/api/v1";
 
 // 2. Dynamic header generator for JWT support
 export const getApiHeaders = (token: string | null = null) => {
@@ -14,3 +14,8 @@ export const getApiHeaders = (token: string | null = null) => {
 
   return headers;
 };
+
+// 3. Static export so existing imports of API_HEADERS (auth.ts, rider.ts, driver.ts, trips.ts)
+// stop pulling `undefined`. This gives unauthenticated headers by default; files that need
+// an authenticated request already add 'Authorization' manually after spreading this.
+export const API_HEADERS = getApiHeaders();
