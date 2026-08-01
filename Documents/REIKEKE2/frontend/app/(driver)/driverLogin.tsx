@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 import { authStyles as styles } from '../../src/styles';
 import { useRouter } from 'expo-router'; 
 import { loginUser } from '@/services/endpoints/auth';
@@ -93,8 +93,8 @@ export default function DriverLoginPage() {
                   secureTextEntry={!showPassword}
                   placeholder="••••••••"
                 />
-                <Pressable onPress={() => setShowPassword(v => !v)} style={{ marginLeft: 8 }}>
-                  <Text style={{ color: '#FF8C00' }}>{showPassword ? 'Hide' : 'Show'}</Text>
+                <Pressable onPress={() => setShowPassword(v => !v)} style={{ marginLeft: 8, padding: 4 }}>
+                  {showPassword ? <EyeOff size={20} color="#FF8C00" /> : <Eye size={20} color="#FF8C00" />}
                 </Pressable>
               </View>
             </View>
