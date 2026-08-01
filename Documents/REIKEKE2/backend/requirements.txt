@@ -1,7 +1,8 @@
-Django==6.0.2
+Django==6.0.1
+psycopg2-binary
+dj-database-url
 djangorestframework
 djangorestframework-simplejwt
 django-cors-headers
-psycopg[binary]
 python-dotenv
-gunicorn
+whitenoise

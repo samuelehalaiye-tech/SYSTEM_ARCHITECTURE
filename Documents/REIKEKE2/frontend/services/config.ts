@@ -1,9 +1,16 @@
+// 1. No trailing slash
+export const BASE_URL = "https://system-architecture-chi.vercel.app"; 
 
+// 2. Dynamic header generator for JWT support
+export const getApiHeaders = (token: string | null = null) => {
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+  };
 
-export const BASE_URL = "http://localhost:8000/api/v1"; 
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
 
-
-export const API_HEADERS = {
-  'Content-Type': 'application/json',
-  'Accept': 'application/json',
+  return headers;
 };
