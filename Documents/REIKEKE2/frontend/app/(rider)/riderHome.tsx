@@ -6,7 +6,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { GooglePlacesAutocomplete } from 'react-native-google-places-autocomplete';
+import PlacesAutocompleteInput from '@/components/PlaceautocompleteInput'
 import { getTripStatus, cancelTrip } from '@/services/endpoints/rider'; 
 import { BASE_URL } from '@/services/config';
 
@@ -206,36 +206,25 @@ export default function PassengerHome() {
 )}
 
           {/* INPUTS - Only show if no active trip */}
-          {!activeTrip && (
-            <View style={styles.inputCard}>
-               <GooglePlacesAutocomplete
-                  placeholder="Pickup Location"
-                  fetchDetails={true}
-                  onPress={(data, details = null) => {
-                    setPickup(data.description);
-                    if (details) setPickupCoords({ lat: details.geometry.location.lat, lng: details.geometry.location.lng });
-                  }}
-                  query={{ key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, language: 'en', components: 'country:ng' }}
-                  enablePoweredByContainer={false}
-                  suppressDefaultStyles={true}
-                  styles={{ textInput: styles.input, listView: styles.listView }}
-                />
-                <View style={{ height: 15 }} />
-                <GooglePlacesAutocomplete
-                  placeholder="Where to?"
-                  fetchDetails={true}
-                  onPress={(data, details = null) => {
-                    setDropoff(data.description);
-                    if (details) setDropoffCoords({ lat: details.geometry.location.lat, lng: details.geometry.location.lng });
-                  }}
-                  query={{ key: process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY, language: 'en', components: 'country:ng' }}
-                  enablePoweredByContainer={false}
-                  suppressDefaultStyles={true}
-                  styles={{ textInput: styles.input, listView: styles.listView }}
-                />
-            </View>
-          )}
-
+         {!activeTrip && (
+  <View style={styles.inputCard}>
+    <PlacesAutocompleteInput
+      placeholder="Pickup Location"
+      onSelect={(place) => {
+        setPickup(place.description);
+        setPickupCoords({ lat: place.lat, lng: place.lng });
+      }}
+    />
+    <View style={{ height: 15 }} />
+    <PlacesAutocompleteInput
+      placeholder="Where to?"
+      onSelect={(place) => {
+        setDropoff(place.description);
+        setDropoffCoords({ lat: place.lat, lng: place.lng });
+      }}
+    />
+  </View>
+)}
           <Pressable 
             onPress={handleConfirm}
             disabled={isButtonDisabled}

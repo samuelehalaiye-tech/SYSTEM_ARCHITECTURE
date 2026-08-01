@@ -1,6 +1,10 @@
 from django.contrib import admin
-from .models import Account,DriverProfile,RiderProfile
+from django.contrib.auth.admin import UserAdmin
+from .models import Account, DriverProfile, RiderProfile
 
-admin.site.register(Account)
+# Register the Account model using Django's secure UserAdmin class
+admin.site.register(Account, UserAdmin)
+
+# Register the profiles normally
 admin.site.register(DriverProfile)
 admin.site.register(RiderProfile)

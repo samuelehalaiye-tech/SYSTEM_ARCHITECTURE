@@ -115,13 +115,18 @@ export default function RiderSignupPage() {
             {/* Confirm Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Confirm Password</Text>
-              <TextInput
-                style={styles.input}
-                value={confirmPassword}
-                onChangeText={setConfirmPassword}
-                secureTextEntry={!showPassword}
-                placeholder="••••••••"
-              />
+              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                <TextInput
+                  style={[styles.input, { flex: 1 }]}
+                  value={confirmPassword}
+                  onChangeText={setConfirmPassword}
+                  secureTextEntry={!showPassword}
+                  placeholder="••••••••"
+                />
+                <Pressable onPress={() => setShowPassword(!showPassword)} style={{ marginLeft: 8, padding: 4 }}>
+                  {showPassword ? <EyeOff size={20} color="#FF8C00" /> : <Eye size={20} color="#FF8C00" />}
+                </Pressable>
+              </View>
             </View>
 
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
