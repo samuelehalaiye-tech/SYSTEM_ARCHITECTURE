@@ -115,15 +115,6 @@ export default function DriverLoginPage() {
                 <Text style={styles.submitButtonText}>Login</Text>
               )}
             </Pressable>
-
-            <Pressable 
-              onPress={() => router.push('/driverSignup')} 
-              style={styles.toggleContainer}
-            >
-              <Text style={styles.toggleText}>
-                Don't have an account? <Text style={styles.toggleTextHighlight}>Sign up</Text>
-              </Text>
-            </Pressable>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
