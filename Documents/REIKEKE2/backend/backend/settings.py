@@ -36,6 +36,7 @@ SIMPLE_JWT = {
 }
 
 INSTALLED_APPS = [
+    'daphne',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -47,6 +48,7 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'rest_framework',
     'corsheaders',
+    'channels',
 ]
 
 MIDDLEWARE = [
@@ -79,6 +81,23 @@ TEMPLATES = [
 ]
 
 WSGI_APPLICATION = 'backend.wsgi.application'
+ASGI_APPLICATION = 'backend.asgi.application'
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer"
+        # For production:
+        # "BACKEND": "channels_redis.core.RedisChannelLayer",
+        # "CONFIG": {
+        #     "hosts": [os.getenv('REDIS_URL', 'redis://127.0.0.1:6379')],
+        # },
+    },
+}
+
+# Note: The backend is currently deployed on Vercel which does NOT support WebSockets.
+# The ASGI application and Channels are implemented for local development and future deployment
+# to a WebSocket-capable host.
+
 
 
 # Database

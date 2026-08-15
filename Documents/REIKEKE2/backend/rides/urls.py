@@ -17,6 +17,7 @@ from .views import (
     CurrentActiveTripView,
     VerifyTripOTPView,
     TriggerSOSView,
+    DriverLocationTrackingView,
 )
 
 urlpatterns = [
@@ -44,5 +45,6 @@ urlpatterns = [
     path('trips/<uuid:trip_id>/track/', TrackingView.as_view(), name='track-trip'),
     path('trips/<uuid:trip_id>/cancel/', TripCancelView.as_view(), name='cancel-trip'),
     path('trips/<uuid:trip_id>/end/', EndTripView.as_view(), name='end-trip'),
+    path('trips/<uuid:trip_id>/location/', DriverLocationTrackingView.as_view(), name='trip-location'),
     path('trips/<int:trip_id>/sos/', TriggerSOSView.as_view(), name='trigger-sos'),
 ]

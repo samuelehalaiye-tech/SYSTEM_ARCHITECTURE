@@ -43,10 +43,10 @@ export default function RootLayout() {
     
     // MOVE THIS INSIDE THE EFFECT so it's always in scope
     const isAccessingPublicRoute = 
-      segments.includes('driverLogin') || 
-      segments.includes('riderLogin') ||
-      segments.includes('riderSignup') || 
-      segments.includes('driverSignup');
+      (segments as string[]).includes('driverLogin') || 
+      (segments as string[]).includes('riderLogin') ||
+      (segments as string[]).includes('riderSignup') || 
+      (segments as string[]).includes('driverSignup');
 
     if (!hasToken) {
       // If no token and not in auth/public pages, force to Role Selection

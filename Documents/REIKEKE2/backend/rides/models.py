@@ -38,6 +38,8 @@ class Trips(models.Model):
     pickup_lat = models.DecimalField(max_digits=20, decimal_places=6)
     dropoff_lng = models.DecimalField(max_digits=20, decimal_places=6)
     dropoff_lat = models.DecimalField(max_digits=20, decimal_places=6)
+    driver_lat = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    driver_lng = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
     price_config = models.ForeignKey(PriceConfig, on_delete=models.CASCADE)
     total_distance = models.DecimalField(max_digits=20, decimal_places=6)
     final_fare = models.DecimalField(max_digits=20, decimal_places=2)

@@ -173,6 +173,11 @@ useEffect(() => {
           router.setParams({ active_trip_id: '' });
           clearInterval(pollInterval);
         } else {
+          if (result.status === 'ACCEPTED') {
+            clearInterval(pollInterval);
+            router.replace({ pathname: '/(rider)/driverApproaching' as any, params: { tripId: tripId } });
+            return;
+          }
           setActiveTrip(result);
           if (result.status === 'COMPLETED') {
             clearInterval(pollInterval);

@@ -23,10 +23,9 @@ export default function SearchingForDriver() {
         
         if (result.status === 'ACCEPTED') {
   clearInterval(pollInterval);
-  // Send them back home with the Trip ID as a parameter
-  router.replace({
-    pathname: '/(rider)/riderHome',
-    params: { active_trip_id: trip_id }
+      router.replace({
+        pathname: '/(rider)/driverApproaching' as any,
+    params: { tripId: trip_id }
   });
 }
       }

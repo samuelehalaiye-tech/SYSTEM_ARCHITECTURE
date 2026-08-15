@@ -150,18 +150,39 @@ class AcceptRiderView(APIView):
                 driver_profile.is_online = False 
                 driver_profile.save()
 
+                # Set initial driver location on trip to driver's last known location
+                if driver_profile.last_lat and driver_profile.last_lng:
+                    trip.driver_lat = driver_profile.last_lat
+                    trip.driver_lng = driver_profile.last_lng
+                    trip.save(update_fields=['driver_lat', 'driver_lng'])
+
                 # 7. TODO: Trigger a Push Notification to the Rider here!
                 # "Your Keke is on the way!"
+                
+                from .google_directions import get_route_info
+                route_info = None
+                if trip.driver_lat and trip.driver_lng:
+                    route_info = get_route_info(trip.driver_lat, trip.driver_lng, trip.pickup_lat, trip.pickup_lng)
 
-            return Response({
+            response_data = {
                 "status": 'success',
                 'message': 'Ride secured! Drive safely.',
                 'trip_details': {
                     'rider_name': trip.rider.user.get_full_name(),
-                    'pickup': trip.pickup_location_name,
+                    'pickup_location_name': trip.pickup_location_name,
+                    'dropoff_location_name': trip.dropoff_location_name,
+                    'pickup_lat': trip.pickup_lat,
+                    'pickup_lng': trip.pickup_lng,
+                    'driver_lat': trip.driver_lat,
+                    'driver_lng': trip.driver_lng,
                     'otp': trip.otp # They'll need this for Step 8
                 }
-            })
+            }
+            
+            if route_info:
+                response_data['trip_details']['route_info'] = route_info
+                
+            return Response(response_data)
 
         except Trips.DoesNotExist:
             return Response({'error': 'Trip no longer exists'}, status=404)
@@ -500,6 +521,18 @@ class TripStatusView(APIView):
                 # If status is ACCEPTED, this is the Start PIN.
                 # If status is STARTED, this is the newly generated End PIN.
                 response_data['otp'] = trip.otp
+                
+                response_data['driver_lat'] = trip.driver_lat
+                response_data['driver_lng'] = trip.driver_lng
+                response_data['pickup_lat'] = trip.pickup_lat
+                response_data['pickup_lng'] = trip.pickup_lng
+                
+                if trip.status == Status.ACCEPTED and trip.driver_lat and trip.driver_lng:
+                    from .google_directions import get_route_info
+                    route_info = get_route_info(trip.driver_lat, trip.driver_lng, trip.pickup_lat, trip.pickup_lng)
+                    if route_info:
+                        response_data['distance_to_pickup'] = route_info.get('distance_text')
+                        response_data['eta_minutes'] = route_info.get('duration_minutes')
 
             return Response(response_data, status=200)
 
@@ -664,3 +697,74 @@ class TriggerSOSView(APIView):
             return Response({"status": "success", "message": "Emergency alert logged."})
         except Trips.DoesNotExist:
             return Response({"error": "Trip not found"}, status=404)
+
+from .google_directions import get_route_info
+
+class DriverLocationTrackingView(APIView):
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request, trip_id):
+        """REST fallback for driver location updates when WebSocket is unavailable"""
+        try:
+            trip = Trips.objects.get(id=trip_id)
+            
+            # Verify driver owns this trip and it's ACCEPTED/STARTED
+            if trip.driver and trip.driver.user == request.user and trip.status in [Status.ACCEPTED, Status.STARTED]:
+                lat = request.data.get('lat')
+                lng = request.data.get('lng')
+                
+                if not lat or not lng:
+                    return Response({"error": "Latitude and longitude required"}, status=400)
+                    
+                # Update trip.driver_lat, trip.driver_lng
+                trip.driver_lat = lat
+                trip.driver_lng = lng
+                trip.save(update_fields=['driver_lat', 'driver_lng'])
+                
+                # Update driver_profile.last_lat, last_lng
+                driver_profile = request.user.driver_profile
+                driver_profile.last_lat = lat
+                driver_profile.last_lng = lng
+                driver_profile.last_active_at = timezone.now()
+                driver_profile.save(update_fields=['last_lat', 'last_lng', 'last_active_at'])
+                
+                return Response({"status": "success"})
+            else:
+                return Response({"error": "Unauthorized"}, status=403)
+                
+        except Trips.DoesNotExist:
+            return Response({"error": "Trip not found"}, status=404)
+        
+    def get(self, request, trip_id):
+        """Get latest driver position (for passenger REST fallback)"""
+        try:
+            trip = Trips.objects.get(id=trip_id)
+            
+            # Verify user is the passenger for this trip
+            if trip.rider and trip.rider.user == request.user:
+                if trip.status not in [Status.ACCEPTED, Status.STARTED]:
+                    return Response({"error": "Trip not active"}, status=400)
+                    
+                response_data = {
+                    "driver_lat": trip.driver_lat,
+                    "driver_lng": trip.driver_lng
+                }
+                
+                # Add route info if driver location is available
+                if trip.driver_lat and trip.driver_lng:
+                    if trip.status == Status.ACCEPTED:
+                        # Driver going to pickup
+                        route_info = get_route_info(trip.driver_lat, trip.driver_lng, trip.pickup_lat, trip.pickup_lng)
+                    else:
+                        # Driver going to dropoff
+                        route_info = get_route_info(trip.driver_lat, trip.driver_lng, trip.dropoff_lat, trip.dropoff_lng)
+                        
+                    if route_info:
+                        response_data["route_info"] = route_info
+                        
+                return Response(response_data)
+            else:
+                return Response({"error": "Unauthorized"}, status=403)
+                
+        except Trips.DoesNotExist:
+            return Response({"error": "Trip not found"}, status=404)

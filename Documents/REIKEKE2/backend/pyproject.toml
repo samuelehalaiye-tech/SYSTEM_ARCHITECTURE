@@ -11,6 +11,10 @@ dependencies = [
     "django-cors-headers",
     "python-dotenv",
     "whitenoise",
+    "channels",
+    "channels-redis",
+    "daphne",
+    "redis",
 ]
 
 [tool.vercel.scripts]

@@ -63,6 +63,10 @@ const checkVehicleInfo = async () => {
 
       const response = await getCurrentTrip(token);
       if (response && response.active) {
+        if (response.status === 'ACCEPTED') {
+          router.replace({ pathname: '/(driver)/preRideTracking' as any, params: { tripId: response.trip_id } });
+          return;
+        }
         setActiveTrip(response);
         // Force driver online if they have an active trip
         if (!isOnline) setIsOnline(true);
