@@ -13,8 +13,14 @@ from datetime import timedelta
 
 load_dotenv()
 
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Matches the path expected in the logs
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles_build', 'static')
+STATIC_URL = '/static/'
+# Build paths inside the project like this: BASE_DIR / 'subdir'.
 
 AUTH_USER_MODEL = 'accounts.Account'
 
