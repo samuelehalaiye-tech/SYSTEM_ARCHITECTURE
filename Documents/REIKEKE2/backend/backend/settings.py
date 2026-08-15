@@ -31,7 +31,11 @@ SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key-for-local-check")
 # Automatically turn off DEBUG in Vercel unless explicitly set to True
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost', '.vercel.app']
+ALLOWED_HOSTS = [
+    'system-architecture-uu9i.onrender.com',
+    'localhost',
+    '127.0.0.1',
+]
 
 
 # Application definition
