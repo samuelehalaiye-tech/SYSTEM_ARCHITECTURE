@@ -12,6 +12,7 @@ dependencies = [
     "python-dotenv",
     "whitenoise",
     "channels",
+    "requests",
     "channels-redis",
     "daphne",
     "redis",
