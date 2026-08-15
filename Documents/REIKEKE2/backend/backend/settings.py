@@ -166,3 +166,9 @@ CORS_ALLOWED_ORIGINS = [
     "http://localhost:8081",
     "http://127.0.0.1:8081",
 ]
+
+# settings.py
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://system-architecture-uu9i.onrender.com',
+]
