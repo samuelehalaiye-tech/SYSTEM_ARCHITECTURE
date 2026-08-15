@@ -1,0 +1,18 @@
+name: Keep Render Server Alive
+
+on:
+  schedule:
+    # Run every 14 minutes to prevent Render's 15-minute idle spin down
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Render Server
+        run: |
+          # Pings the backend to keep it awake.
+          # We use curl with -s (silent), -f (fail silently on server errors), 
+          # and -m (max time) to avoid hanging
+          curl -s -f -m 10 https://system-architecture-uu9i.onrender.com/api/v1/trips/ || echo "Ping attempted"
