@@ -11,7 +11,8 @@ import { useDriverTracking } from '@/hooks/useDriverTracking';
 import { cancelTrip, getTripStatus } from '@/services/endpoints/rider';
 
 export default function DriverApproaching() {
-  const { tripId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const tripId = Array.isArray(params.tripId) ? params.tripId[0] : params.tripId;
   const router = useRouter();
   
   const [token, setToken] = useState<string | null>(null);
@@ -27,7 +28,7 @@ export default function DriverApproaching() {
           const trip = await getTripStatus(tripId as string, t);
           setTripData(trip);
         } catch (e) {
-          console.error(e);
+          console.error('driverApproaching init error:', e);
         }
       }
     };
@@ -35,9 +36,13 @@ export default function DriverApproaching() {
   }, [tripId]);
 
   const { driverLocation, distance, eta, routeCoords, isLoading } = useDriverTracking({
-    tripId: tripId as string,
+    tripId: tripId ?? null,
     token,
-    enabled: !!tripId && !!token
+    enabled: !!tripId && !!token,
+    // Seed initial driver position from the REST trip status so the marker shows immediately
+    initialDriverLocation: tripData?.driver_lat && tripData?.driver_lng
+      ? { lat: Number(tripData.driver_lat), lng: Number(tripData.driver_lng) }
+      : undefined,
   });
 
   const handleCancel = async () => {
@@ -75,7 +80,7 @@ export default function DriverApproaching() {
     Alert.alert("SOS", "Alerting Security...");
   };
 
-  if (!tripData && !token) {
+  if (!token) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF8C00" />
@@ -83,14 +88,17 @@ export default function DriverApproaching() {
     );
   }
 
-  // Derive pickup location for the pin
-  let pLat = tripData?.pickup_lat;
-  let pLng = tripData?.pickup_lng;
-  if ((!pLat || !pLng) && routeCoords.length > 0) {
-      const lastCoord = routeCoords[routeCoords.length - 1];
-      pLat = lastCoord.latitude;
-      pLng = lastCoord.longitude;
-  }
+  // Coerce Decimal strings from Django to numbers
+  const pLat = tripData?.pickup_lat ? Number(tripData.pickup_lat) : null;
+  const pLng = tripData?.pickup_lng ? Number(tripData.pickup_lng) : null;
+
+  // Give the map an initial region centred on pickup so it's not blank on load
+  const mapInitialRegion = pLat && pLng ? {
+    latitude: pLat,
+    longitude: pLng,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  } : undefined;
 
   return (
     <View style={styles.container}>
@@ -98,6 +106,7 @@ export default function DriverApproaching() {
         style={StyleSheet.absoluteFillObject}
         polylineCoords={routeCoords}
         showUserLocation={true}
+        initialRegion={mapInitialRegion}
       >
         {driverLocation && (
           <DriverMarker

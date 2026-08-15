@@ -24,6 +24,14 @@ interface MapComponentProps {
   children?: React.ReactNode;
 }
 
+// Jimeta / Yola, Adamawa State — default map centre
+const YOLA_REGION: Region = {
+  latitude: 9.2035,
+  longitude: 12.4954,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
+
 export default function MapComponent({
   markers = [],
   polylineCoords = [],
@@ -63,7 +71,7 @@ export default function MapComponent({
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={styles.map}
-        initialRegion={initialRegion}
+        initialRegion={initialRegion ?? YOLA_REGION}
         showsUserLocation={showUserLocation}
         showsMyLocationButton={false}
         showsCompass={false}

@@ -117,7 +117,7 @@ export const acceptRide=async (tripId:string, token:string)=>{
 export const getCurrentTrip = async (token: string) => {
   try {
     // Make sure API_BASE_URL matches whatever you use in this file
-    const response = await fetch(`${BASE_URL}/trips/current/`, {
+    const response = await fetch(`${BASE_URL}/rides/trips/current/`, {
       method: 'GET',
       headers: {
         'Authorization': `Bearer ${token}`,
@@ -141,7 +141,7 @@ export const getCurrentTrip = async (token: string) => {
 export const verifyTripOTP = async (tripId: string, otp: string, action: string, token: string) => {
     console.log("Trip ID:", tripId);
   try {
-    const response = await fetch(`${BASE_URL}/${tripId}/verify/`, { // Added api/v1
+    const response = await fetch(`${BASE_URL}/rides/${tripId}/verify/`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

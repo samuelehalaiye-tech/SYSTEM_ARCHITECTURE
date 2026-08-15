@@ -14,11 +14,13 @@ import { getCurrentTrip } from '@/services/endpoints/driver';
 import { decodePolyline } from '@/services/polylineUtils';
 
 export default function PreRideTracking() {
-  const { tripId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const tripId = Array.isArray(params.tripId) ? params.tripId[0] : params.tripId;
   const router = useRouter();
   
   const [token, setToken] = useState<string | null>(null);
   const [tripData, setTripData] = useState<any>(null);
+  const [routeData, setRouteData] = useState<any>(null);
   const [routeCoords, setRouteCoords] = useState<any[]>([]);
   const [eta, setEta] = useState<string>('');
   const [distance, setDistance] = useState<string>('');
@@ -30,18 +32,24 @@ export default function PreRideTracking() {
       if (t && tripId) {
         try {
           const trip = await getCurrentTrip(t);
-          if (trip && trip.trip_id === tripId) {
+          // getCurrentTrip returns the active trip — accept it regardless of id match
+          // (driver only has one active trip at a time)
+          if (trip && trip.active !== false) {
             setTripData(trip);
           }
           
-          const routeData = await getRouteToPickup(tripId as string, t);
-          if (routeData.polyline) {
-            setRouteCoords(decodePolyline(routeData.polyline));
+          const rd = await getRouteToPickup(tripId as string, t);
+          setRouteData(rd);
+          if (rd.polyline) {
+            setRouteCoords(decodePolyline(rd.polyline));
           }
-          if (routeData.eta) setEta(routeData.eta);
-          if (routeData.distance) setDistance(routeData.distance);
+          // Backend field names from Google Directions: distance_text / duration_text
+          if (rd.duration_text) setEta(rd.duration_text);
+          else if (rd.eta) setEta(rd.eta);
+          if (rd.distance_text) setDistance(rd.distance_text);
+          else if (rd.distance) setDistance(rd.distance);
         } catch (e) {
-          console.error(e);
+          console.error('PreRideTracking init error:', e);
         }
       }
     };
@@ -70,23 +78,27 @@ export default function PreRideTracking() {
   });
 
   const handleNavigate = () => {
-    // If backend returns pickup_lat/lng directly on trip:
-    let plat = tripData?.pickup_lat;
-    let plng = tripData?.pickup_lng;
-    
-    // Fallback: Last coordinate of the route
-    if (!plat || !plng) {
-        if (routeCoords.length > 0) {
-            const lastCoord = routeCoords[routeCoords.length - 1];
-            plat = lastCoord.latitude;
-            plng = lastCoord.longitude;
-        }
+    // Primary: pickup_lat/lng on the tripData object (from getCurrentTrip)
+    let plat: number | null = tripData?.pickup_lat ? Number(tripData.pickup_lat) : null;
+    let plng: number | null = tripData?.pickup_lng ? Number(tripData.pickup_lng) : null;
+
+    // Fallback: pickup coords returned by the route endpoint
+    if ((!plat || !plng) && routeData?.pickup_lat) {
+      plat = Number(routeData.pickup_lat);
+      plng = Number(routeData.pickup_lng);
+    }
+
+    // Last resort: first coord in the route (destination of the route to pickup)
+    if ((!plat || !plng) && routeCoords.length > 0) {
+      const last = routeCoords[routeCoords.length - 1];
+      plat = last.latitude;
+      plng = last.longitude;
     }
 
     if (plat && plng) {
       Linking.openURL(`google.navigation:q=${plat},${plng}`);
     } else {
-      Alert.alert('Error', 'Pickup location not available');
+      Alert.alert('Error', 'Pickup location not available yet. Make sure your GPS is on.');
     }
   };
 
@@ -94,7 +106,7 @@ export default function PreRideTracking() {
     router.push({ pathname: '/(driver)/otp-verify', params: { tripId: tripId, action: 'start' } });
   };
 
-  if (!tripData && !token) {
+  if (!token) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#FF8C00" />
@@ -102,14 +114,17 @@ export default function PreRideTracking() {
     );
   }
 
-  // Derive pickup location for the pin
-  let pLat = tripData?.pickup_lat;
-  let pLng = tripData?.pickup_lng;
-  if ((!pLat || !pLng) && routeCoords.length > 0) {
-      const lastCoord = routeCoords[routeCoords.length - 1];
-      pLat = lastCoord.latitude;
-      pLng = lastCoord.longitude;
-  }
+  // Derive pickup location — coerce Decimal strings from Django to numbers
+  const pLat = tripData?.pickup_lat ? Number(tripData.pickup_lat) : (routeData?.pickup_lat ? Number(routeData.pickup_lat) : null);
+  const pLng = tripData?.pickup_lng ? Number(tripData.pickup_lng) : (routeData?.pickup_lng ? Number(routeData.pickup_lng) : null);
+
+  // Give the map an initial region centred on the pickup so it's not blank
+  const mapInitialRegion = pLat && pLng ? {
+    latitude: pLat,
+    longitude: pLng,
+    latitudeDelta: 0.02,
+    longitudeDelta: 0.02,
+  } : undefined;
 
   return (
     <View style={styles.container}>
@@ -117,6 +132,7 @@ export default function PreRideTracking() {
         style={StyleSheet.absoluteFillObject}
         polylineCoords={routeCoords}
         showUserLocation={false}
+        initialRegion={mapInitialRegion}
       >
         {location && (
           <DriverMarker
@@ -135,7 +151,7 @@ export default function PreRideTracking() {
 
       <TripInfoPanel
         driverName={tripData?.rider_name || 'Rider'}
-        pickupName={tripData?.pickup_name || 'Pickup Location'}
+        pickupName={tripData?.pickup_location_name || tripData?.pickup_name || 'Pickup Location'}
         eta={eta}
         distance={distance}
         isDriver={true}

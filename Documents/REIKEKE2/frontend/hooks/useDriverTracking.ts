@@ -7,9 +7,12 @@ export function useDriverTracking(options: {
   tripId: string | null;
   token: string | null;
   enabled?: boolean;
+  initialDriverLocation?: { lat: number; lng: number };
 }) {
-  const { tripId, token, enabled = true } = options;
-  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number; heading?: number } | null>(null);
+  const { tripId, token, enabled = true, initialDriverLocation } = options;
+  const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number; heading?: number } | null>(
+    initialDriverLocation ?? null
+  );
   const [distance, setDistance] = useState<string>('');
   const [eta, setEta] = useState<string>('');
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
@@ -17,14 +20,26 @@ export function useDriverTracking(options: {
 
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const routeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Seed location when REST tripData arrives after hook already mounted
+  useEffect(() => {
+    if (initialDriverLocation && !driverLocation) {
+      setDriverLocation(initialDriverLocation);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialDriverLocation?.lat, initialDriverLocation?.lng]);
   
   const handleWsMessage = useCallback((data: any) => {
-    if (data.type === 'location_update' && data.location) {
-      setDriverLocation({
-        lat: data.location.lat,
-        lng: data.location.lng,
-        heading: data.location.heading,
-      });
+    // Backend sends type: 'location'; guard against both variants
+    if ((data.type === 'location' || data.type === 'location_update')) {
+      const loc = data.location ?? data; // backend sends flat or nested
+      if (loc.lat != null && loc.lng != null) {
+        setDriverLocation({
+          lat: Number(loc.lat),
+          lng: Number(loc.lng),
+          heading: loc.heading != null ? Number(loc.heading) : undefined,
+        });
+      }
       if (data.distance) setDistance(data.distance);
       if (data.eta) setEta(data.eta);
     }
@@ -44,8 +59,11 @@ export function useDriverTracking(options: {
       if (data.polyline) {
         setRouteCoords(decodePolyline(data.polyline));
       }
-      if (data.distance) setDistance(data.distance);
-      if (data.eta) setEta(data.eta);
+      // Backend returns distance_text / duration_text from Google Directions
+      if (data.distance_text) setDistance(data.distance_text);
+      else if (data.distance) setDistance(data.distance);
+      if (data.duration_text) setEta(data.duration_text);
+      else if (data.eta) setEta(data.eta);
     } catch (error) {
       console.error('Failed to fetch route:', error);
     }
@@ -55,11 +73,15 @@ export function useDriverTracking(options: {
     if (!tripId || !token) return;
     try {
       const data = await getDriverPosition(tripId, token);
-      if (data.location) {
+      // Backend returns driver_lat / driver_lng at the top level
+      const lat = data.location?.lat ?? data.driver_lat;
+      const lng = data.location?.lng ?? data.driver_lng;
+      const heading = data.location?.heading ?? data.heading;
+      if (lat != null && lng != null) {
         setDriverLocation({
-          lat: data.location.lat,
-          lng: data.location.lng,
-          heading: data.location.heading,
+          lat: Number(lat),
+          lng: Number(lng),
+          heading: heading != null ? Number(heading) : undefined,
         });
       }
     } catch (error) {

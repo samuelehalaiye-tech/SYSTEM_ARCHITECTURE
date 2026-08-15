@@ -24,7 +24,12 @@
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.onaopemipoehalaiye.frontend"
+      "package": "com.onaopemipoehalaiye.frontend",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyClL4a4RxTewNcthjseAWdIJRLy5TXlF2A"
+        }
+      }
     },
     "web": {
       "output": "static",
@@ -44,7 +49,15 @@
           }
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow REIKEKE to use your location to track rides.",
+          "locationAlwaysPermission": "Allow REIKEKE to use your location to track rides in the background.",
+          "locationWhenInUsePermission": "Allow REIKEKE to use your location to track rides."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

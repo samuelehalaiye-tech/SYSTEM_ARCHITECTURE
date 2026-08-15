@@ -1,5 +1,5 @@
 // 1. No trailing slash — includes the versioned API path Django's urls.py actually expects
-export const BASE_URL = "https://system-architecture-chi.vercel.app/api/v1";
+export const BASE_URL = "https://system-architecture-uu9i.onrender.com/api/v1";
 
 // 2. Dynamic header generator for JWT support
 export const getApiHeaders = (token: string | null = null) => {

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "extra": {
+      "eas": {
+        "projectId": "5b06a473-e502-4fcb-b2bc-2c6016197e8d"
+      }
+    },
+    "android": {
+      "package": "com.onaopemipoehalaiye.system_architecture"
+    }
+  }
+}
