@@ -6,6 +6,7 @@ export default function DriverLayout() {
       <Stack.Screen name="driverLogin" />
       <Stack.Screen name="driverSignup" />
       <Stack.Screen name="driverHome" />
+      <Stack.Screen name="vehicleInfo" />
       <Stack.Screen name="offers" />
     </Stack>
   );

@@ -13,6 +13,8 @@ import {
 import { Phone, List, Play, CheckCircle, XCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { useRouter } from 'expo-router'; 
+import { getDriverProfile } from '../../services/endpoints/driver';
+
 
 // Make sure you import the new getCurrentTrip function!
 import { updateDriverStatus, getCurrentTrip  } from '../../services/endpoints/driver'; 
@@ -27,6 +29,25 @@ export default function DriverHome({ phone }: DriverHomeProps) {
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [activeTrip, setActiveTrip] = useState<any>(null); // The new state for our trip
   const router = useRouter(); 
+
+
+
+  useEffect(() => {
+  checkVehicleInfo();
+}, []);
+
+const checkVehicleInfo = async () => {
+  try {
+    const token = await AsyncStorage.getItem('userToken');
+    if (!token) return;
+    const profile = await getDriverProfile(token);
+    if (!profile?.plate_number) {
+      router.push({ pathname: '/vehicleInfo', params: { firstTime: 'true' } });
+    }
+  } catch (e) {
+    console.error("Vehicle info check failed", e);
+  }
+};
   
   // Polling Logic: Check for active trip when component mounts, and every 10 seconds
   useEffect(() => {
@@ -233,7 +254,9 @@ export default function DriverHome({ phone }: DriverHomeProps) {
         )}
         
         <View style={{ flex: 1 }} />
-
+        <Pressable onPress={() => router.push('/vehicleInfo')} style={styles.vehicleInfoButton}>
+  <Text style={{ color: '#FF8C00', fontWeight: 'bold' }}>Update Vehicle Info</Text>
+</Pressable>
         <Pressable onPress={handleLogout} style={styles.logoutButton}>
           <Text style={{color: '#FFFFFF', fontWeight: 'bold'}}>Logout</Text>
         </Pressable>
@@ -259,7 +282,10 @@ const styles = StyleSheet.create({
   buttonPressed: { backgroundColor: '#FF7700' },
   hintText: { textAlign: 'center', color: '#9CA3AF', fontSize: 14, marginTop: 10 },
   logoutButton: { backgroundColor: '#FF8C00', paddingVertical: 15, paddingHorizontal: 25, borderRadius: 12, borderWidth: 2, borderColor: '#E57C00', alignItems: 'center', justifyContent: 'center', elevation: 3 },
-  
+  vehicleInfoButton: {
+  paddingVertical: 12,
+  alignItems: 'center',
+},
   // NEW STYLES FOR THE TRIP CARD
   activeTripCard: { backgroundColor: '#FFFBEB', padding: 20, borderRadius: 16, borderWidth: 2, borderColor: '#FEF3C7', gap: 15 },
   activeTripTitle: { fontSize: 18, fontWeight: 'bold', color: '#92400E' },

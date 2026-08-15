@@ -21,6 +21,39 @@ export const updateDriverStatus =async(isOnline:boolean, token:string)=>{
 }
 
 
+export const getDriverProfile = async (token: string) => {
+    try {
+        const response = await fetch(`${BASE_URL}/auth/users/me/driver/`, {
+            method: 'GET',
+            headers: {
+                ...API_HEADERS,
+                'Authorization': `Bearer ${token}`
+            },
+        });
+        if (!response.ok) throw new Error('Failed to fetch driver profile');
+        return await response.json();
+    } catch (error) {
+        console.error("Get Driver Profile Error:", error);
+        throw error;
+    }
+};
+
+export const updateVehicleInfo = async (plateNumber: string, token: string) => {
+    try {
+        const response = await fetch(`${BASE_URL}/auth/users/me/driver/`, {
+            method: 'PATCH',
+            headers: {
+                ...API_HEADERS,
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify({ plate_number: plateNumber })
+        });
+        return await response.json();
+    } catch (error) {
+        console.error("Update Vehicle Info Error:", error);
+        throw error;
+    }
+};
 
 export const getRideOffers = async (token: string) => {
     try {

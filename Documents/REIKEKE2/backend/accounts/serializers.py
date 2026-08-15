@@ -9,11 +9,17 @@ class RiderProfileSerializer(serializers.ModelSerializer):
 
         
 
+# accounts/serializers.py
 class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = '__all__'
 
+    def validate_plate_number(self, value):
+        value = value.strip().upper()
+        if not value:
+            raise serializers.ValidationError("Plate number cannot be empty.")
+        return value
 class AccountSerializer(serializers.ModelSerializer):
     # This nests the profile data inside the account data
     rider_profile = RiderProfileSerializer(read_only=True)

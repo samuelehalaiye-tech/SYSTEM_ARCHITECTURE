@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, Pressable, Alert } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { cancelRide, getTripStatus } from '@/services/endpoints/rider';
+import { cancelTrip, getTripStatus } from '@/services/endpoints/rider';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function SearchingForDriver() {
@@ -41,7 +41,7 @@ export default function SearchingForDriver() {
   const handleCancel = async () => {
     const token = await AsyncStorage.getItem('userToken');
     if (token && trip_id) {
-      await cancelRide(trip_id as string, token);
+      await cancelTrip(trip_id as string, token);
       router.replace('/(rider)/riderHome');
     }
   };

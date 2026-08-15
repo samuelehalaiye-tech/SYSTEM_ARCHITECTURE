@@ -6,20 +6,67 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import PlacesAutocompleteInput from '@/components/PlaceautocompleteInput'
+
 import { getTripStatus, cancelTrip } from '@/services/endpoints/rider'; 
 import { BASE_URL } from '@/services/config';
+import {
+  MapPin,
+  Navigation,
+} from 'lucide-react-native';
 
 export default function PassengerHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+
   const { active_trip_id } = useLocalSearchParams();
+
+
   const [cancelling, setCancelling] = useState(false);
   const [pickup, setPickup] = useState('');
   const [dropoff, setDropoff] = useState('');
   const [pickupCoords, setPickupCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [dropoffCoords, setDropoffCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [activeTrip, setActiveTrip] = useState<any>(null);
+
+useEffect(() => {
+  const loadLocations = async () => {
+    try {
+      const pickupData = await AsyncStorage.getItem(
+        'reikeke_pickup_location'
+      );
+
+      const dropoffData = await AsyncStorage.getItem(
+        'reikeke_dropoff_location'
+      );
+
+      if (pickupData) {
+        const location = JSON.parse(pickupData);
+
+        setPickup(location.description);
+        setPickupCoords({
+          lat: location.lat,
+          lng: location.lng,
+        });
+      }
+
+      if (dropoffData) {
+        const location = JSON.parse(dropoffData);
+
+        setDropoff(location.description);
+        setDropoffCoords({
+          lat: location.lat,
+          lng: location.lng,
+        });
+      }
+    } catch (error) {
+      console.error('Failed to load saved locations:', error);
+    }
+  };
+
+  loadLocations();
+}, []);
+
+
 
   const handleCancelRide = async () => {
   if (!activeTrip) return;
@@ -62,7 +109,12 @@ export default function PassengerHome() {
 };
 
   const handleConfirm = async () => {
-  if (!pickupCoords.lat || !dropoffCoords.lat) {
+  if (
+  pickupCoords.lat === null ||
+  pickupCoords.lng === null ||
+  dropoffCoords.lat === null ||
+  dropoffCoords.lng === null
+) {
     Alert.alert("Error", "Please select valid locations.");
     return;
   }
@@ -88,7 +140,7 @@ export default function PassengerHome() {
 
     if (response.ok && result.status === "success") {
       router.push({
-        pathname: "/(rider)/riderConfirm",
+        pathname: "/riderConfirm",
         params: {
           pickup,
           dropoff,
@@ -172,6 +224,16 @@ export default function PassengerHome() {
            activeTrip.status === 'STARTED' ? "✅ Trip in Progress" : 
            "🔍 Searching for nearby Keke..."}
         </Text>
+
+
+        {(activeTrip.status === 'ACCEPTED' || activeTrip.status === 'STARTED') && activeTrip.driver && (
+  <View style={styles.driverInfoBox}>
+    <Text style={styles.driverInfoName}>{activeTrip.driver.name}</Text>
+    <View style={styles.plateBadge}>
+      <Text style={styles.plateBadgeText}>{activeTrip.driver.keke_plate || 'No plate on file'}</Text>
+    </View>
+  </View>
+)}
         
         {/* OTP Section: Only shows once a driver is involved */}
         {(activeTrip.status === 'ACCEPTED' || activeTrip.status === 'STARTED') && (
@@ -206,25 +268,85 @@ export default function PassengerHome() {
 )}
 
           {/* INPUTS - Only show if no active trip */}
-         {!activeTrip && (
+
+{!activeTrip && (
   <View style={styles.inputCard}>
-    <PlacesAutocompleteInput
-      placeholder="Pickup Location"
-      onSelect={(place) => {
-        setPickup(place.description);
-        setPickupCoords({ lat: place.lat, lng: place.lng });
+
+    {/* Pickup */}
+    <Pressable
+      onPress={() => {
+        router.push({
+          pathname: '/locationSearch',
+          params: {
+            type: 'pickup',
+          },
+        });
       }}
-    />
-    <View style={{ height: 15 }} />
-    <PlacesAutocompleteInput
-      placeholder="Where to?"
-      onSelect={(place) => {
-        setDropoff(place.description);
-        setDropoffCoords({ lat: place.lat, lng: place.lng });
+      style={styles.locationButton}
+    >
+      <View style={styles.locationIconPickup}>
+        <MapPin size={20} color="#FF8C00" />
+      </View>
+
+      <View style={styles.locationTextContainer}>
+        <Text style={styles.locationLabel}>
+          Pickup location
+        </Text>
+
+        <Text
+          style={[
+            styles.locationValue,
+            !pickup && styles.locationPlaceholder,
+          ]}
+          numberOfLines={1}
+        >
+          {pickup || 'Choose pickup location'}
+        </Text>
+      </View>
+    </Pressable>
+
+    {/* Connector */}
+    <View style={styles.locationConnector}>
+      <View style={styles.connectorLine} />
+    </View>
+
+    {/* Dropoff */}
+    <Pressable
+      onPress={() => {
+        router.push({
+          pathname: '/locationSearch',
+          params: {
+            type: 'dropoff',
+          },
+        });
       }}
-    />
+      style={styles.locationButton}
+    >
+      <View style={styles.locationIconDropoff}>
+        <Navigation size={20} color="#10B981" />
+      </View>
+
+      <View style={styles.locationTextContainer}>
+        <Text style={styles.locationLabel}>
+          Destination
+        </Text>
+
+        <Text
+          style={[
+            styles.locationValue,
+            !dropoff && styles.locationPlaceholder,
+          ]}
+          numberOfLines={1}
+        >
+          {dropoff || 'Where are you going?'}
+        </Text>
+      </View>
+    </Pressable>
+
   </View>
 )}
+
+
           <Pressable 
             onPress={handleConfirm}
             disabled={isButtonDisabled}
@@ -293,6 +415,31 @@ buttonDisabled2: {
     shadowOpacity: 0.1, 
     shadowRadius: 10 
   },
+  driverInfoBox: {
+  marginTop: 16,
+  padding: 14,
+  backgroundColor: '#1F2937',
+  borderRadius: 12,
+  alignItems: 'center',
+  gap: 8,
+},
+driverInfoName: {
+  color: '#FFFFFF',
+  fontSize: 16,
+  fontWeight: '600',
+},
+plateBadge: {
+  backgroundColor: '#FF8C00',
+  paddingVertical: 6,
+  paddingHorizontal: 14,
+  borderRadius: 8,
+},
+plateBadgeText: {
+  color: '#111827',
+  fontWeight: 'bold',
+  fontSize: 16,
+  letterSpacing: 1,
+},
   input: { backgroundColor: '#F3F4F6', padding: 12, borderRadius: 8, fontSize: 16 },
   listView: { position: 'absolute', top: 50, left: 0, right: 0, backgroundColor: 'white', zIndex: 1000, elevation: 5 },
   confirmButton: { backgroundColor: '#FF8C00', paddingVertical: 18, borderRadius: 12, alignItems: 'center', marginTop: 'auto' },
@@ -308,5 +455,62 @@ buttonDisabled2: {
   otpContainer: { marginTop: 20, padding: 20, backgroundColor: '#1F2937', borderRadius: 15, alignItems: 'center' },
   otpLabel: { color: '#9CA3AF', fontSize: 11, marginBottom: 10 },
   otpValue: { color: '#FF8C00', fontSize: 48, fontWeight: 'bold', letterSpacing: 10 },
-  successText: { color: '#10B981', textAlign: 'center', fontWeight: 'bold', fontSize: 18 }
+  successText: { color: '#10B981', textAlign: 'center', fontWeight: 'bold', fontSize: 18 },
+
+
+
+locationButton: { flexDirection: 'row', alignItems: 'center', paddingVertical: 14, },
+locationIconPickup: {
+  width: 42,
+  height: 42,
+  borderRadius: 21,
+  backgroundColor: '#FFF7ED',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+locationIconDropoff: {
+  width: 42,
+  height: 42,
+  borderRadius: 21,
+  backgroundColor: '#ECFDF5',
+  alignItems: 'center',
+  justifyContent: 'center',
+},
+
+locationTextContainer: {
+  flex: 1,
+  marginLeft: 12,
+},
+
+locationLabel: {
+  fontSize: 12,
+  color: '#6B7280',
+  marginBottom: 3,
+},
+
+locationValue: {
+  fontSize: 16,
+  fontWeight: '600',
+  color: '#111827',
+},
+
+locationPlaceholder: {
+  color: '#9CA3AF',
+  fontWeight: '400',
+},
+
+locationConnector: {
+  height: 10,
+  marginLeft: 20,
+  justifyContent: 'center',
+},
+
+connectorLine: {
+  width: 2,
+  height: 10,
+  backgroundColor: '#D1D5DB',
+},
+
+
 });

@@ -1,3 +1,4 @@
+
 import { Stack } from 'expo-router';
 
 export default function RiderLayout() {
@@ -5,11 +6,11 @@ export default function RiderLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="riderLogin" />
       <Stack.Screen name="riderSignup" />
-      
-      
-      <Stack.Screen name="riderConfirm" />
-      
 
+      <Stack.Screen name="riderConfirm" />
+
+      <Stack.Screen name="locationSearch" />
     </Stack>
   );
 }
+
