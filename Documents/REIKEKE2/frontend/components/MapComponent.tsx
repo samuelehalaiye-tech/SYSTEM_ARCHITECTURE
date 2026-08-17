@@ -1,6 +1,14 @@
-import React, { useRef, useEffect } from 'react';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region } from 'react-native-maps';
-import { StyleSheet, View, ViewStyle } from 'react-native';
+import React, { forwardRef } from 'react';
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE, Region, MapViewProps } from 'react-native-maps';
+import { StyleSheet } from 'react-native';
+
+// Jimeta / Yola, Adamawa State — default map centre
+export const YOLA_REGION: Region = {
+  latitude: 9.2035,
+  longitude: 12.4954,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
 
 interface MapMarker {
   id: string;
@@ -8,105 +16,67 @@ interface MapMarker {
   title?: string;
   description?: string;
   pinColor?: string;
-  children?: React.ReactNode;
 }
 
-interface MapComponentProps {
+interface MapComponentProps extends Omit<MapViewProps, 'provider' | 'style'> {
   markers?: MapMarker[];
   polylineCoords?: { latitude: number; longitude: number }[];
   polylineColor?: string;
-  showUserLocation?: boolean;
-  initialRegion?: Region;
-  onMapReady?: () => void;
-  style?: ViewStyle;
-  fitToMarkers?: boolean;
-  edgePadding?: { top: number; right: number; bottom: number; left: number };
   children?: React.ReactNode;
 }
 
-// Jimeta / Yola, Adamawa State — default map centre
-const YOLA_REGION: Region = {
-  latitude: 9.2035,
-  longitude: 12.4954,
-  latitudeDelta: 0.05,
-  longitudeDelta: 0.05,
-};
-
-export default function MapComponent({
-  markers = [],
-  polylineCoords = [],
-  polylineColor = '#FF8C00',
-  showUserLocation = true,
-  initialRegion,
-  onMapReady,
-  style,
-  fitToMarkers = true,
-  edgePadding = { top: 50, right: 50, bottom: 50, left: 50 },
-  children,
-}: MapComponentProps) {
-  const mapRef = useRef<MapView>(null);
-
-  useEffect(() => {
-    if (fitToMarkers && mapRef.current && (markers.length > 0 || polylineCoords.length > 0)) {
-      const coordinates = [
-        ...markers.map(m => m.coordinate),
-        ...polylineCoords
-      ];
-
-      if (coordinates.length > 0) {
-        // Small delay to ensure map is rendered before fitting
-        setTimeout(() => {
-          mapRef.current?.fitToCoordinates(coordinates, {
-            edgePadding,
-            animated: true,
-          });
-        }, 500);
-      }
-    }
-  }, [markers, polylineCoords, fitToMarkers, edgePadding]);
-
+/**
+ * Thin wrapper around MapView.
+ * - Always uses PROVIDER_GOOGLE
+ * - Fills its parent absolutely (use flex:1 on the parent container)
+ * - Forwards the ref so callers can call mapRef.current.animateCamera() etc.
+ */
+const MapComponent = forwardRef<MapView, MapComponentProps>(function MapComponent(
+  {
+    markers = [],
+    polylineCoords = [],
+    polylineColor = '#FF8C00',
+    initialRegion,
+    children,
+    ...rest
+  },
+  ref
+) {
   return (
-    <View style={[styles.container, style]}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        initialRegion={initialRegion ?? YOLA_REGION}
-        showsUserLocation={showUserLocation}
-        showsMyLocationButton={false}
-        showsCompass={false}
-        onMapReady={onMapReady}
-      >
-        {polylineCoords.length > 0 && (
-          <Polyline
-            coordinates={polylineCoords}
-            strokeColor={polylineColor}
-            strokeWidth={4}
-          />
-        )}
-        
-        {markers.map((marker) => (
-          <Marker
-            key={marker.id}
-            coordinate={marker.coordinate}
-            title={marker.title}
-            description={marker.description}
-            pinColor={marker.pinColor}
-          >
-            {marker.children}
-          </Marker>
-        ))}
-        {children}
-      </MapView>
-    </View>
-  );
-}
+    <MapView
+      ref={ref}
+      provider={PROVIDER_GOOGLE}
+      style={StyleSheet.absoluteFillObject}
+      initialRegion={initialRegion ?? YOLA_REGION}
+      showsMyLocationButton={false}
+      showsCompass={true}
+      rotateEnabled={true}
+      {...rest}
+    >
+      {polylineCoords.length > 0 && (
+        <Polyline
+          coordinates={polylineCoords}
+          strokeColor={polylineColor}
+          strokeWidth={5}
+          lineDashPattern={undefined}
+        />
+      )}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  map: {
-    ...StyleSheet.absoluteFillObject,
-  },
+      {markers.map((marker) => (
+        <Marker
+          key={marker.id}
+          coordinate={marker.coordinate}
+          title={marker.title}
+          description={marker.description}
+          pinColor={marker.pinColor}
+        />
+      ))}
+
+      {children}
+    </MapView>
+  );
 });
+
+export default MapComponent;
+
+const styles = StyleSheet.create({});

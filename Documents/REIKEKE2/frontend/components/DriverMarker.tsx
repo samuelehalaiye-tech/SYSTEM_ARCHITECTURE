@@ -1,16 +1,58 @@
-import React from 'react';
-import { View, StyleSheet, Text } from 'react-native';
-import { Marker } from 'react-native-maps';
+import React, { useRef, useEffect } from 'react';
+import { View, StyleSheet, Text, Platform } from 'react-native';
+import MapView, { Marker, AnimatedRegion } from 'react-native-maps';
 
 interface DriverMarkerProps {
   coordinate: { latitude: number; longitude: number };
   heading?: number;
 }
 
+/**
+ * Uber-style driver marker.
+ * Uses AnimatedRegion so the keke glides smoothly between GPS updates
+ * instead of teleporting.
+ */
 export default function DriverMarker({ coordinate, heading = 0 }: DriverMarkerProps) {
+  const markerRef = useRef<any>(null);
+
+  // AnimatedRegion keeps a native-side animated value for lat/lng
+  const animatedCoord = useRef(
+    new AnimatedRegion({
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      latitudeDelta: 0,
+      longitudeDelta: 0,
+    })
+  ).current;
+
+  useEffect(() => {
+    const newCoord = {
+      latitude: coordinate.latitude,
+      longitude: coordinate.longitude,
+      latitudeDelta: 0,
+      longitudeDelta: 0,
+    };
+
+    if (Platform.OS === 'android' && markerRef.current) {
+      // On Android animateMarkerToCoordinate gives hardware-accelerated movement
+      markerRef.current.animateMarkerToCoordinate(newCoord, 800);
+    } else {
+      // On iOS use AnimatedRegion timing
+      animatedCoord
+        .timing({ ...newCoord, duration: 800, useNativeDriver: false })
+        .start();
+    }
+  }, [coordinate.latitude, coordinate.longitude]);
+
   return (
-    <Marker coordinate={coordinate} anchor={{ x: 0.5, y: 0.5 }} flat={true}>
-      <View style={[styles.markerContainer, { transform: [{ rotate: `${heading}deg` }] }]}>
+    <Marker.Animated
+      ref={markerRef}
+      coordinate={animatedCoord}
+      anchor={{ x: 0.5, y: 0.5 }}
+      flat={true}
+      rotation={heading}
+    >
+      <View style={styles.markerContainer}>
         <View style={styles.outerCircle}>
           <View style={styles.arrowContainer}>
             <View style={styles.arrow} />
@@ -20,47 +62,46 @@ export default function DriverMarker({ coordinate, heading = 0 }: DriverMarkerPr
           </View>
         </View>
       </View>
-    </Marker>
+    </Marker.Animated>
   );
 }
 
 const styles = StyleSheet.create({
   markerContainer: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     alignItems: 'center',
     justifyContent: 'center',
   },
   outerCircle: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#FF8C00',
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.35,
+    shadowRadius: 4,
+    elevation: 6,
   },
   innerCircle: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
   },
   emoji: {
-    fontSize: 16,
+    fontSize: 18,
   },
   arrowContainer: {
     position: 'absolute',
-    top: -4,
-    alignItems: 'center',
-    justifyContent: 'center',
+    top: -5,
     width: '100%',
+    alignItems: 'center',
   },
   arrow: {
     width: 0,
@@ -69,7 +110,7 @@ const styles = StyleSheet.create({
     borderStyle: 'solid',
     borderLeftWidth: 6,
     borderRightWidth: 6,
-    borderBottomWidth: 8,
+    borderBottomWidth: 9,
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
     borderBottomColor: '#FF8C00',
