@@ -1,10 +1,21 @@
 // Minimal stub of react-native for Node/Jest environment
 const React = require('react');
 
-const View = ({ children }) => children ?? null;
-const Text = ({ children }) => children ?? null;
-const Pressable = ({ children, onPress }) => children ?? null;
-const ActivityIndicator = () => null;
+const createHostComponent = (name) => ({ children, ...props }) =>
+  React.createElement(name, props, children);
+
+// Keep native primitives as host elements so React Native Testing Library can
+// find text, inputs, and controls when rendering an actual screen.
+const View = createHostComponent('View');
+const Text = createHostComponent('Text');
+const TextInput = createHostComponent('TextInput');
+const Image = createHostComponent('Image');
+const Switch = createHostComponent('Switch');
+const ScrollView = createHostComponent('ScrollView');
+const Modal = createHostComponent('Modal');
+const Pressable = createHostComponent('Pressable');
+const SafeAreaView = createHostComponent('SafeAreaView');
+const ActivityIndicator = createHostComponent('ActivityIndicator');
 const Alert = { alert: jest.fn() };
 const Platform = { OS: 'android', select: (obj) => obj.android ?? obj.default };
 const StyleSheet = {
@@ -26,7 +37,13 @@ const Animated = {
 module.exports = {
   View,
   Text,
+  TextInput,
+  Image,
+  Switch,
+  ScrollView,
+  Modal,
   Pressable,
+  SafeAreaView,
   ActivityIndicator,
   Alert,
   Platform,

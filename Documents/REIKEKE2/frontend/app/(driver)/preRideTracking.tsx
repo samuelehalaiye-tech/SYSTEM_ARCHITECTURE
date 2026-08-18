@@ -16,7 +16,7 @@ import { YOLA_REGION } from '@/components/MapComponent';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useDriverLocation } from '@/hooks/useDriverLocation';
 import { getCurrentTrip } from '@/services/endpoints/driver';
-import { getRouteToPickup } from '@/services/endpoints/tracking';
+import { getRouteToPickup, updateDriverLocation } from '@/services/endpoints/tracking';
 import { decodePolyline } from '@/services/polylineUtils';
 
 const ROUTE_REFRESH_MS = 30000;
@@ -35,6 +35,7 @@ export default function PreRideTracking() {
   const [tripData, setTripData] = useState<any>(null);
   const [eta, setEta] = useState<string>('--');
   const [distance, setDistance] = useState<string>('--');
+  const [routeError, setRouteError] = useState<string | null>(null);
   const [routeCoords, setRouteCoords] = useState<
     { latitude: number; longitude: number }[]
   >([]);
@@ -79,13 +80,30 @@ export default function PreRideTracking() {
     if (!tripId || !token) return;
     try {
       const data = await getRouteToPickup(tripId, token);
+      const hasRouteSummary =
+        typeof data.distance_text === 'string' &&
+        typeof data.duration_text === 'string';
+
+      if (!hasRouteSummary) {
+        setRouteCoords([]);
+        setDistance('--');
+        setEta('--');
+        setRouteError('Route unavailable. Waiting for GPS or Maps response.');
+        return;
+      }
+
       if (data.polyline) {
         setRouteCoords(decodePolyline(data.polyline));
       }
-      if (data.distance_text) setDistance(data.distance_text);
-      if (data.duration_text) setEta(data.duration_text);
+      setDistance(data.distance_text);
+      setEta(data.duration_text);
+      setRouteError(null);
     } catch (e) {
       console.error('Failed to fetch route to pickup:', e);
+      setRouteCoords([]);
+      setDistance('--');
+      setEta('--');
+      setRouteError('Unable to load route. Check your connection and try again.');
     }
   }, [tripId, token]);
 
@@ -100,7 +118,7 @@ export default function PreRideTracking() {
   const { location: driverLoc } = useDriverLocation({
     enabled: !!token,
     onLocationUpdate: (loc) => {
-      sendMessage({
+      const locationMessage = {
         type: 'location',
         lat: loc.lat,
         lng: loc.lng,
@@ -108,7 +126,18 @@ export default function PreRideTracking() {
         speed: loc.speed,
         accuracy: loc.accuracy,
         timestamp: loc.timestamp,
-      });
+      };
+
+      // WebSockets give the passenger a live update, but the route endpoint
+      // reads the driver's last saved location from the API. If the socket is
+      // disconnected or rejected, persist the same GPS point over REST so the
+      // pre-ride route can still be calculated on its next refresh.
+      const sentOverWebSocket = sendMessage(locationMessage);
+      if (!sentOverWebSocket && tripId && token) {
+        void updateDriverLocation(tripId, locationMessage, token).catch((e) => {
+          console.error('Failed to save driver location fallback:', e);
+        });
+      }
 
       // Uber-style camera follow — but only if the driver isn't
       // currently panning/zooming the map themselves.
@@ -252,6 +281,12 @@ export default function PreRideTracking() {
           </View>
         </View>
 
+        {routeError && (
+          <Text accessibilityRole="alert" style={styles.routeError}>
+            {routeError}
+          </Text>
+        )}
+
         {/* Pickup name */}
         <View style={styles.pickupRow}>
           <Navigation size={16} color="#FF8C00" />
@@ -329,6 +364,12 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 26, fontWeight: '700', color: '#fff' },
   statLabel: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
   statDivider: { width: 1, height: 32, backgroundColor: '#374151' },
+  routeError: {
+    color: '#FCD34D',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+  },
 
   pickupRow: {
     flexDirection: 'row',

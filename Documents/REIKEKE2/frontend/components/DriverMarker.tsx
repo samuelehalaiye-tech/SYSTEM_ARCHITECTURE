@@ -39,7 +39,13 @@ export default function DriverMarker({ coordinate, heading = 0 }: DriverMarkerPr
     } else {
       // On iOS use AnimatedRegion timing
       animatedCoord
-        .timing({ ...newCoord, duration: 800, useNativeDriver: false })
+        // react-native-maps creates the per-coordinate `toValue` internally.
+        // Its public type currently still requires callers to supply one.
+        .timing({
+          ...newCoord,
+          duration: 800,
+          useNativeDriver: false,
+        } as Parameters<typeof animatedCoord.timing>[0])
         .start();
     }
   }, [coordinate.latitude, coordinate.longitude]);
@@ -47,7 +53,9 @@ export default function DriverMarker({ coordinate, heading = 0 }: DriverMarkerPr
   return (
     <Marker.Animated
       ref={markerRef}
-      coordinate={animatedCoord}
+      // AnimatedRegion is supported by Marker.Animated at runtime, although
+      // the react-native-maps type declaration only lists a static LatLng.
+      coordinate={animatedCoord as unknown as { latitude: number; longitude: number }}
       anchor={{ x: 0.5, y: 0.5 }}
       flat={true}
       rotation={heading}

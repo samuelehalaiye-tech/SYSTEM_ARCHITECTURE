@@ -46,4 +46,12 @@ Marker.Animated = React.forwardRef(function AnimatedMarker({ children, ...props 
 const Polyline = (props) => React.createElement('Polyline', props);
 const PROVIDER_GOOGLE = 'google';
 
-module.exports = { default: MapView, MapView, Marker, Polyline, AnimatedRegion, PROVIDER_GOOGLE };
+module.exports = {
+  __esModule: true,
+  default: MapView,
+  MapView,
+  Marker,
+  Polyline,
+  AnimatedRegion,
+  PROVIDER_GOOGLE,
+};

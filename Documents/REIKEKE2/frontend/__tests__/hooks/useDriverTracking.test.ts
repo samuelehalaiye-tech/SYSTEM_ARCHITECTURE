@@ -36,7 +36,7 @@ const TRIP_ID = 'trip-123';
 const TOKEN = 'tok-abc';
 
 beforeEach(() => {
-  jest.resetAllMocks();
+  jest.clearAllMocks();
   // Default: useWebSocket returns disconnected
   (useWebSocket as jest.Mock).mockReturnValue({
     isConnected: false,
@@ -44,6 +44,7 @@ beforeEach(() => {
     lastMessage: null,
     reconnect: jest.fn(),
   });
+  (getDriverPosition as jest.Mock).mockResolvedValue({});
 });
 
 // ─── Initial location seed ───────────────────────────────────────────────────

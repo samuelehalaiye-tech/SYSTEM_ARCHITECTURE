@@ -10,6 +10,7 @@
  */
 import { WS_BASE_URL } from '../../hooks/useWebSocket';
 import { BASE_URL } from '../../services/config';
+import { act, renderHook } from '@testing-library/react-native';
 
 // ─── WS_BASE_URL derivation ──────────────────────────────────────────────────
 
@@ -37,6 +38,7 @@ describe('WS_BASE_URL', () => {
 
 // We test the hook by directly exercising its connect logic with a mock WebSocket
 class MockWebSocket {
+  static OPEN = 1;
   static instances: MockWebSocket[] = [];
   url: string;
   readyState: number = 0; // CONNECTING
@@ -90,7 +92,6 @@ afterEach(() => {
 describe('useWebSocket URL construction', () => {
   it('builds the correct full WebSocket URL with token', () => {
     const { useWebSocket } = require('../../hooks/useWebSocket');
-    const { renderHook } = require('@testing-library/react-native');
 
     renderHook(() => useWebSocket({
       url: '/ws/tracking/trip-abc/',
@@ -107,7 +108,6 @@ describe('useWebSocket URL construction', () => {
 
   it('does NOT connect when token is null', () => {
     const { useWebSocket } = require('../../hooks/useWebSocket');
-    const { renderHook } = require('@testing-library/react-native');
 
     renderHook(() => useWebSocket({
       url: '/ws/tracking/trip-abc/',
@@ -120,7 +120,6 @@ describe('useWebSocket URL construction', () => {
 
   it('does NOT connect when enabled is false', () => {
     const { useWebSocket } = require('../../hooks/useWebSocket');
-    const { renderHook } = require('@testing-library/react-native');
 
     renderHook(() => useWebSocket({
       url: '/ws/tracking/trip-abc/',
@@ -135,7 +134,6 @@ describe('useWebSocket URL construction', () => {
 describe('useWebSocket message handling', () => {
   it('calls onMessage with parsed data when server sends a message', () => {
     const { useWebSocket } = require('../../hooks/useWebSocket');
-    const { renderHook, act } = require('@testing-library/react-native');
 
     const onMessage = jest.fn();
 
@@ -157,7 +155,6 @@ describe('useWebSocket message handling', () => {
 
   it('handles the flat "type: location" format the backend sends', () => {
     const { useWebSocket } = require('../../hooks/useWebSocket');
-    const { renderHook, act } = require('@testing-library/react-native');
 
     const onMessage = jest.fn();
 
@@ -184,7 +181,6 @@ describe('useWebSocket message handling', () => {
 describe('useWebSocket sendMessage', () => {
   it('sends JSON-stringified data when socket is OPEN', () => {
     const { useWebSocket } = require('../../hooks/useWebSocket');
-    const { renderHook, act } = require('@testing-library/react-native');
 
     let send: (data: any) => boolean;
     renderHook(() => {
@@ -208,7 +204,6 @@ describe('useWebSocket sendMessage', () => {
 
   it('returns false and does NOT throw when socket is not open', () => {
     const { useWebSocket } = require('../../hooks/useWebSocket');
-    const { renderHook, act } = require('@testing-library/react-native');
 
     let send: (data: any) => boolean;
     renderHook(() => {
