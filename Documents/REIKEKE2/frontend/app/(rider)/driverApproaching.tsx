@@ -17,36 +17,69 @@ import { YOLA_REGION } from '@/components/MapComponent';
 import { useDriverTracking } from '@/hooks/useDriverTracking';
 import { cancelTrip, getTripStatus } from '@/services/endpoints/rider';
 
+const TRIP_STATUS_REFRESH_MS = 5000;
+
 export default function DriverApproaching() {
   const params = useLocalSearchParams();
   const tripId = Array.isArray(params.tripId)
     ? params.tripId[0]
     : params.tripId;
   const router = useRouter();
+  const routerRef = useRef(router);
+  routerRef.current = router;
 
   const mapRef = useRef<MapView>(null);
   const hasFitOnceRef = useRef(false);
+  const completionHandledRef = useRef(false);
 
   const [token, setToken] = useState<string | null>(null);
   const [tripData, setTripData] = useState<any>(null);
   const [cancelling, setCancelling] = useState(false);
   const [mapReady, setMapReady] = useState(false);
 
-  // ── Load token + trip data ──────────────────────────────────────────────
+  // ── Load token ──────────────────────────────────────────────────────────
   useEffect(() => {
-    const init = async () => {
+    const loadToken = async () => {
       const t = await AsyncStorage.getItem('userToken');
       setToken(t);
-      if (!t || !tripId) return;
+    };
+    loadToken();
+  }, []);
+
+  // Refresh status so the screen gets the newly rotated end PIN and changes
+  // its target from pickup to dropoff as soon as the driver starts the ride.
+  useEffect(() => {
+    if (!token || !tripId) return;
+
+    let cancelled = false;
+    const refreshTrip = async () => {
       try {
-        const trip = await getTripStatus(tripId as string, t);
+        const trip = await getTripStatus(tripId as string, token);
+        if (cancelled) return;
+
         setTripData(trip);
+
+        if (trip.status === 'COMPLETED' && !completionHandledRef.current) {
+          completionHandledRef.current = true;
+          Alert.alert('Ride completed', 'You have arrived at your destination.', [
+            {
+              text: 'Back to Home',
+              onPress: () => routerRef.current.replace('/(rider)/riderHome'),
+            },
+          ]);
+        }
       } catch (e) {
-        console.error('driverApproaching init:', e);
+        console.error('driverApproaching status refresh:', e);
       }
     };
-    init();
-  }, [tripId]);
+
+    void refreshTrip();
+    const interval = setInterval(refreshTrip, TRIP_STATUS_REFRESH_MS);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [tripId, token]);
 
   // Seed the hook with whatever the initial REST call already knows,
   // so the map isn't blank while the WS/route fetch is still spinning up.
@@ -54,6 +87,20 @@ export default function DriverApproaching() {
     tripData?.driver_lat && tripData?.driver_lng
       ? { lat: Number(tripData.driver_lat), lng: Number(tripData.driver_lng) }
       : undefined;
+
+  const routePhase = tripData?.status === 'STARTED' ? 'dropoff' : 'pickup';
+  const isRideStarted = routePhase === 'dropoff';
+  const targetLat = isRideStarted
+    ? tripData?.dropoff_lat
+    : tripData?.pickup_lat;
+  const targetLng = isRideStarted
+    ? tripData?.dropoff_lng
+    : tripData?.pickup_lng;
+  const targetCoord =
+    targetLat != null && targetLng != null
+      ? { latitude: Number(targetLat), longitude: Number(targetLng) }
+      : null;
+  const targetTitle = isRideStarted ? 'Your Destination' : 'Your Pickup';
 
   // ── One hook handles: WebSocket live updates, REST polling fallback
   //    when the socket is down, and a throttled (30s) route/ETA refresh
@@ -64,40 +111,38 @@ export default function DriverApproaching() {
       token,
       enabled: !!tripId && !!token,
       initialDriverLocation: seededDriverLoc,
+      routePhase,
     });
 
   const driverCoord = driverLocation
     ? { latitude: driverLocation.lat, longitude: driverLocation.lng }
     : null;
 
-  // Pickup pin
-  const pickupLat = tripData?.pickup_lat ? Number(tripData.pickup_lat) : null;
-  const pickupLng = tripData?.pickup_lng ? Number(tripData.pickup_lng) : null;
-  const hasPickup = pickupLat !== null && pickupLng !== null;
+  // Re-fit only when the route phase changes, not for ordinary GPS updates.
+  useEffect(() => {
+    hasFitOnceRef.current = false;
+  }, [routePhase]);
 
-  // ── Fit the map ONCE when we first have both points. After that we
-  //    leave the camera alone — auto re-fitting on every route refresh
-  //    is what was making the map fight the rider's own panning.
   useEffect(() => {
     if (hasFitOnceRef.current) return;
-    if (!mapReady || !hasPickup || !driverCoord) return;
+    if (!mapReady || !targetCoord || !driverCoord) return;
 
     hasFitOnceRef.current = true;
     setTimeout(() => {
       mapRef.current?.fitToCoordinates(
-        [driverCoord, { latitude: pickupLat!, longitude: pickupLng! }],
+        [driverCoord, targetCoord],
         {
           edgePadding: { top: 80, right: 60, bottom: 300, left: 60 },
           animated: true,
         },
       );
     }, 600);
-  }, [mapReady, hasPickup, !!driverCoord]);
+  }, [mapReady, targetCoord, driverCoord, routePhase]);
 
   const handleRecenter = () => {
-    if (!driverCoord || !hasPickup) return;
+    if (!driverCoord || !targetCoord) return;
     mapRef.current?.fitToCoordinates(
-      [driverCoord, { latitude: pickupLat!, longitude: pickupLng! }],
+      [driverCoord, targetCoord],
       {
         edgePadding: { top: 80, right: 60, bottom: 300, left: 60 },
         animated: true,
@@ -152,10 +197,10 @@ export default function DriverApproaching() {
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFillObject}
         initialRegion={
-          hasPickup
+          targetCoord
             ? {
-                latitude: pickupLat!,
-                longitude: pickupLng!,
+                latitude: targetCoord.latitude,
+                longitude: targetCoord.longitude,
                 latitudeDelta: 0.04,
                 longitudeDelta: 0.04,
               }
@@ -177,12 +222,12 @@ export default function DriverApproaching() {
           />
         )}
 
-        {/* Pickup pin */}
-        {hasPickup && (
+        {/* Pickup before start; destination after start */}
+        {targetCoord && (
           <Marker
-            coordinate={{ latitude: pickupLat!, longitude: pickupLng! }}
-            title="Your Pickup"
-            pinColor="#22C55E"
+            coordinate={targetCoord}
+            title={targetTitle}
+            pinColor={isRideStarted ? '#EF4444' : '#22C55E'}
           />
         )}
 
@@ -217,12 +262,16 @@ export default function DriverApproaching() {
         <View style={styles.statsRow}>
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{eta || '--'}</Text>
-            <Text style={styles.statLabel}>Driver ETA</Text>
+            <Text style={styles.statLabel}>
+              {isRideStarted ? 'Arrival ETA' : 'Driver ETA'}
+            </Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
             <Text style={styles.statValue}>{distance || '--'}</Text>
-            <Text style={styles.statLabel}>Away</Text>
+            <Text style={styles.statLabel}>
+              {isRideStarted ? 'Remaining' : 'Away'}
+            </Text>
           </View>
           {tripData?.otp && (
             <>
@@ -236,7 +285,9 @@ export default function DriverApproaching() {
                 >
                   {tripData.otp}
                 </Text>
-                <Text style={styles.statLabel}>PIN</Text>
+                <Text style={styles.statLabel}>
+                  {isRideStarted ? 'End PIN' : 'Start PIN'}
+                </Text>
               </View>
             </>
           )}

@@ -16,13 +16,19 @@ class AnimatedRegion {
   }
 }
 
+const mapMethods = {
+  animateCamera: jest.fn(),
+  fitToCoordinates: jest.fn(),
+  animateToRegion: jest.fn(),
+};
+
+const resetMapMethods = () => {
+  Object.values(mapMethods).forEach((method) => method.mockClear());
+};
+
 const MapView = React.forwardRef(function MapView({ children, onMapReady, ...props }, ref) {
   // Expose imperative methods via ref
-  React.useImperativeHandle(ref, () => ({
-    animateCamera: jest.fn(),
-    fitToCoordinates: jest.fn(),
-    animateToRegion: jest.fn(),
-  }));
+  React.useImperativeHandle(ref, () => mapMethods);
   if (onMapReady) setTimeout(onMapReady, 0);
   return React.createElement('MapView', props, children);
 });
@@ -54,4 +60,6 @@ module.exports = {
   Polyline,
   AnimatedRegion,
   PROVIDER_GOOGLE,
+  __mapMethods: mapMethods,
+  __resetMapMethods: resetMapMethods,
 };

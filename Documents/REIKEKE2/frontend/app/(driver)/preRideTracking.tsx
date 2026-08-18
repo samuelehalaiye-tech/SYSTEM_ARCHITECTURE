@@ -16,7 +16,11 @@ import { YOLA_REGION } from '@/components/MapComponent';
 import { useWebSocket } from '@/hooks/useWebSocket';
 import { useDriverLocation } from '@/hooks/useDriverLocation';
 import { getCurrentTrip } from '@/services/endpoints/driver';
-import { getRouteToPickup, updateDriverLocation } from '@/services/endpoints/tracking';
+import {
+  getRouteToPickup,
+  TrackingApiError,
+  updateDriverLocation,
+} from '@/services/endpoints/tracking';
 import { decodePolyline } from '@/services/polylineUtils';
 
 const ROUTE_REFRESH_MS = 30000;
@@ -47,6 +51,12 @@ export default function PreRideTracking() {
   const interactionTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null,
   );
+  const routeIsAvailableRef = useRef(false);
+  const lastLocationRouteRefreshRef = useRef(0);
+  const locationFallbackBlockedRef = useRef(false);
+  const lastRoutePolylineRef = useRef<string | null>(null);
+  const hasRouteOnMapRef = useRef(false);
+  const hasPositionedCameraRef = useRef(false);
 
   // ── Load token + trip data ──────────────────────────────────────────────
   useEffect(() => {
@@ -85,22 +95,35 @@ export default function PreRideTracking() {
         typeof data.duration_text === 'string';
 
       if (!hasRouteSummary) {
-        setRouteCoords([]);
+        routeIsAvailableRef.current = false;
+        if (hasRouteOnMapRef.current) {
+          hasRouteOnMapRef.current = false;
+          lastRoutePolylineRef.current = null;
+          setRouteCoords([]);
+        }
         setDistance('--');
         setEta('--');
         setRouteError('Route unavailable. Waiting for GPS or Maps response.');
         return;
       }
 
-      if (data.polyline) {
+      if (data.polyline && data.polyline !== lastRoutePolylineRef.current) {
+        lastRoutePolylineRef.current = data.polyline;
+        hasRouteOnMapRef.current = true;
         setRouteCoords(decodePolyline(data.polyline));
       }
+      routeIsAvailableRef.current = true;
       setDistance(data.distance_text);
       setEta(data.duration_text);
       setRouteError(null);
     } catch (e) {
       console.error('Failed to fetch route to pickup:', e);
-      setRouteCoords([]);
+      routeIsAvailableRef.current = false;
+      if (hasRouteOnMapRef.current) {
+        hasRouteOnMapRef.current = false;
+        lastRoutePolylineRef.current = null;
+        setRouteCoords([]);
+      }
       setDistance('--');
       setEta('--');
       setRouteError('Unable to load route. Check your connection and try again.');
@@ -115,7 +138,7 @@ export default function PreRideTracking() {
   }, [tripId, token, fetchRoute]);
 
   // ── Driver GPS ──────────────────────────────────────────────────────────
-  const { location: driverLoc } = useDriverLocation({
+  const { location: driverLoc, error: driverLocationError } = useDriverLocation({
     enabled: !!token,
     onLocationUpdate: (loc) => {
       const locationMessage = {
@@ -128,21 +151,55 @@ export default function PreRideTracking() {
         timestamp: loc.timestamp,
       };
 
-      // WebSockets give the passenger a live update, but the route endpoint
-      // reads the driver's last saved location from the API. If the socket is
-      // disconnected or rejected, persist the same GPS point over REST so the
-      // pre-ride route can still be calculated on its next refresh.
+      // A successful WebSocket send only means the message left this device;
+      // it does not guarantee the route endpoint can read the coordinate yet.
+      // Until a route is available, make the REST location update authoritative
+      // and retry the route immediately after the first saved GPS point.
       const sentOverWebSocket = sendMessage(locationMessage);
-      if (!sentOverWebSocket && tripId && token) {
-        void updateDriverLocation(tripId, locationMessage, token).catch((e) => {
-          console.error('Failed to save driver location fallback:', e);
-        });
+      const routeNeedsDriverLocation = !routeIsAvailableRef.current;
+      if (
+        !locationFallbackBlockedRef.current &&
+        (!sentOverWebSocket || routeNeedsDriverLocation) &&
+        tripId &&
+        token
+      ) {
+        void updateDriverLocation(tripId, locationMessage, token)
+          .then(() => {
+            const now = Date.now();
+            const canRefreshRoute =
+              routeNeedsDriverLocation &&
+              now - lastLocationRouteRefreshRef.current >= ROUTE_REFRESH_MS;
+
+            if (canRefreshRoute) {
+              lastLocationRouteRefreshRef.current = now;
+              void fetchRoute();
+            }
+          })
+          .catch((e) => {
+            if (
+              e instanceof TrackingApiError &&
+              (e.status === 403 || e.status === 409)
+            ) {
+              locationFallbackBlockedRef.current = true;
+              setRouteError(
+                e.message.replace(/^Failed to update location: \d+:\s*/, ''),
+              );
+              return;
+            }
+            console.error('Failed to save driver location fallback:', e);
+          });
       }
 
-      // Uber-style camera follow — but only if the driver isn't
-      // currently panning/zooming the map themselves.
-      if (!userInteractingRef.current) {
-        mapRef.current?.animateCamera(
+      // Keep the map stable after its initial position. The marker itself is
+      // animated for every GPS point; moving the entire camera every few
+      // seconds made the driver screen look as though it was refreshing.
+      if (
+        !hasPositionedCameraRef.current &&
+        !userInteractingRef.current &&
+        mapRef.current
+      ) {
+        hasPositionedCameraRef.current = true;
+        mapRef.current.animateCamera(
           {
             center: { latitude: loc.lat, longitude: loc.lng },
             heading: loc.heading ?? 0,
@@ -284,6 +341,12 @@ export default function PreRideTracking() {
         {routeError && (
           <Text accessibilityRole="alert" style={styles.routeError}>
             {routeError}
+          </Text>
+        )}
+
+        {driverLocationError && (
+          <Text accessibilityRole="alert" style={styles.routeError}>
+            GPS is unavailable: {driverLocationError}
           </Text>
         )}
 

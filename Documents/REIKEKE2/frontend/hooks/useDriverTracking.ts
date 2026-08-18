@@ -8,8 +8,15 @@ export function useDriverTracking(options: {
   token: string | null;
   enabled?: boolean;
   initialDriverLocation?: { lat: number; lng: number };
+  routePhase?: 'pickup' | 'dropoff';
 }) {
-  const { tripId, token, enabled = true, initialDriverLocation } = options;
+  const {
+    tripId,
+    token,
+    enabled = true,
+    initialDriverLocation,
+    routePhase = 'pickup',
+  } = options;
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number; heading?: number } | null>(
     initialDriverLocation ?? null
   );
@@ -101,7 +108,7 @@ export function useDriverTracking(options: {
     return () => {
       if (routeIntervalRef.current) clearInterval(routeIntervalRef.current);
     };
-  }, [enabled, tripId, token, fetchRoute]);
+  }, [enabled, tripId, token, fetchRoute, routePhase]);
 
   useEffect(() => {
     if (enabled && tripId && token && !isConnected) {

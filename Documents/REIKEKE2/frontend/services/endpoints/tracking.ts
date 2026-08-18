@@ -1,5 +1,25 @@
 import { BASE_URL, API_HEADERS } from '../config';
 
+export class TrackingApiError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'TrackingApiError';
+  }
+}
+
+const getErrorMessage = async (response: Response, fallback: string) => {
+  try {
+    const body = await response.json();
+    const detail = body.error ?? body.detail;
+    return detail ? `${fallback}: ${detail}` : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
 export const getRouteToPickup = async (tripId: string, token: string) => {
   const response = await fetch(`${BASE_URL}/rides/trips/${tripId}/route/`, {
     method: 'GET',
@@ -47,7 +67,10 @@ export const updateDriverLocation = async (
   });
   
   if (!response.ok) {
-    throw new Error(`Failed to update location: ${response.status}`);
+    throw new TrackingApiError(
+      response.status,
+      await getErrorMessage(response, `Failed to update location: ${response.status}`),
+    );
   }
   
   return response.json();

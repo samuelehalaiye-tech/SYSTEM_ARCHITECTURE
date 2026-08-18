@@ -526,6 +526,9 @@ class TripStatusView(APIView):
                 response_data['driver_lng'] = trip.driver_lng
                 response_data['pickup_lat'] = trip.pickup_lat
                 response_data['pickup_lng'] = trip.pickup_lng
+                # Rider tracking changes its target after the start OTP.
+                response_data['dropoff_lat'] = trip.dropoff_lat
+                response_data['dropoff_lng'] = trip.dropoff_lng
                 
                 if trip.status == Status.ACCEPTED and trip.driver_lat and trip.driver_lng:
                     from .google_directions import get_route_info
@@ -713,30 +716,46 @@ class DriverLocationTrackingView(APIView):
         """REST fallback for driver location updates when WebSocket is unavailable"""
         try:
             trip = Trips.objects.get(id=trip_id)
-            
-            # Verify driver owns this trip and it's ACCEPTED/STARTED
-            if trip.driver and trip.driver.user == request.user and trip.status in [Status.ACCEPTED, Status.STARTED]:
-                lat = request.data.get('lat')
-                lng = request.data.get('lng')
-                
-                if not lat or not lng:
-                    return Response({"error": "Latitude and longitude required"}, status=400)
-                    
-                # Update trip.driver_lat, trip.driver_lng
-                trip.driver_lat = lat
-                trip.driver_lng = lng
-                trip.save(update_fields=['driver_lat', 'driver_lng'])
-                
-                # Update driver_profile.last_lat, last_lng
-                driver_profile = request.user.driver_profile
-                driver_profile.last_lat = lat
-                driver_profile.last_lng = lng
-                driver_profile.last_active_at = timezone.now()
-                driver_profile.save(update_fields=['last_lat', 'last_lng', 'last_active_at'])
-                
-                return Response({"status": "success"})
-            else:
-                return Response({"error": "Unauthorized"}, status=403)
+            if not trip.driver:
+                return Response(
+                    {"error": "No driver is assigned to this trip yet."},
+                    status=409,
+                )
+
+            if trip.driver.user_id != request.user.id:
+                return Response(
+                    {"error": "This trip is assigned to a different driver account."},
+                    status=403,
+                )
+
+            if trip.status not in [Status.ACCEPTED, Status.STARTED]:
+                return Response(
+                    {
+                        "error": "Driver location updates require an accepted or started trip.",
+                        "trip_status": trip.status,
+                    },
+                    status=409,
+                )
+
+            lat = request.data.get('lat')
+            lng = request.data.get('lng')
+
+            if lat is None or lng is None:
+                return Response({"error": "Latitude and longitude required"}, status=400)
+
+            # Update trip.driver_lat, trip.driver_lng
+            trip.driver_lat = lat
+            trip.driver_lng = lng
+            trip.save(update_fields=['driver_lat', 'driver_lng'])
+
+            # The assigned profile is the authorized profile checked above.
+            driver_profile = trip.driver
+            driver_profile.last_lat = lat
+            driver_profile.last_lng = lng
+            driver_profile.last_active_at = timezone.now()
+            driver_profile.save(update_fields=['last_lat', 'last_lng', 'last_active_at'])
+
+            return Response({"status": "success"})
                 
         except Trips.DoesNotExist:
             return Response({"error": "Trip not found"}, status=404)
