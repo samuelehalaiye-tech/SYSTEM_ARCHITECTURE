@@ -52,6 +52,46 @@ export const getDriverPosition = async (tripId: string, token: string) => {
   return response.json();
 };
 
+export const getPassengerPosition = async (tripId: string, token: string) => {
+  const response = await fetch(`${BASE_URL}/rides/trips/${tripId}/passenger-location/`, {
+    method: 'GET',
+    headers: {
+      ...API_HEADERS,
+      'Authorization': `Bearer ${token}`
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to get passenger position: ${response.status}`);
+  }
+
+  return response.json();
+};
+
+export const updatePassengerLocation = async (
+  tripId: string,
+  locationData: { lat: number; lng: number; heading?: number; speed?: number; accuracy?: number; timestamp: string },
+  token: string
+) => {
+  const response = await fetch(`${BASE_URL}/rides/trips/${tripId}/passenger-location/`, {
+    method: 'POST',
+    headers: {
+      ...API_HEADERS,
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify(locationData)
+  });
+
+  if (!response.ok) {
+    throw new TrackingApiError(
+      response.status,
+      await getErrorMessage(response, `Failed to update passenger location: ${response.status}`),
+    );
+  }
+
+  return response.json();
+};
+
 export const updateDriverLocation = async (
   tripId: string,
   locationData: { lat: number; lng: number; heading?: number; speed?: number; accuracy?: number; timestamp: string },

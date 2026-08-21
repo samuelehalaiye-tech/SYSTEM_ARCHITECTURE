@@ -37,39 +37,53 @@ class TripTrackingConsumer(AsyncJsonWebsocketConsumer):
             )
 
     async def receive_json(self, content):
-        # Only process location updates from the driver
-        if self.role != 'driver':
-            return
-            
+        # Process location updates from driver or passenger
         msg_type = content.get('type')
         if msg_type == 'location':
             lat = content.get('lat')
             lng = content.get('lng')
-            
-            if lat is not None and lng is not None:
+
+            if lat is None or lng is None:
+                return
+
+            # Update DB based on role
+            if self.role == 'driver':
                 await self.update_driver_location(lat, lng)
-                
-                # Broadcast location to group
-                await self.channel_layer.group_send(
-                    self.group_name,
-                    {
-                        'type': 'trip_location_update',
-                        'lat': lat,
-                        'lng': lng,
-                        'heading': content.get('heading'),
-                        'timestamp': content.get('timestamp')
-                    }
-                )
+                event_type = 'trip_location_update'
+            elif self.role == 'passenger':
+                await self.update_passenger_location(lat, lng)
+                event_type = 'trip_location_update'  # reuse same handler on clients; include role below
+            else:
+                return
+
+            # Broadcast location to group (include role so clients can distinguish)
+            await self.channel_layer.group_send(
+                self.group_name,
+                {
+                    'type': event_type,
+                    'role': self.role,
+                    'lat': lat,
+                    'lng': lng,
+                    'heading': content.get('heading'),
+                    'timestamp': content.get('timestamp')
+                }
+            )
 
     async def trip_location_update(self, event):
         # Send message to WebSocket
-        await self.send_json({
+        payload = {
             'type': 'location',
             'lat': event['lat'],
             'lng': event['lng'],
             'heading': event.get('heading'),
             'timestamp': event.get('timestamp')
-        })
+        }
+
+        # Include role when present so consumers can tell driver vs passenger updates
+        if 'role' in event:
+            payload['role'] = event['role']
+
+        await self.send_json(payload)
 
     @database_sync_to_async
     def verify_trip_access(self):
@@ -103,5 +117,16 @@ class TripTrackingConsumer(AsyncJsonWebsocketConsumer):
                 profile.last_lng = lng
                 profile.last_active_at = timezone.now()
                 profile.save(update_fields=['last_lat', 'last_lng', 'last_active_at'])
+        except Trips.DoesNotExist:
+            pass
+
+    @database_sync_to_async
+    def update_passenger_location(self, lat, lng):
+        try:
+            trip = Trips.objects.get(id=self.trip_id)
+            # Store live passenger device coordinates on the trip
+            trip.passenger_lat = lat
+            trip.passenger_lng = lng
+            trip.save(update_fields=['passenger_lat', 'passenger_lng'])
         except Trips.DoesNotExist:
             pass

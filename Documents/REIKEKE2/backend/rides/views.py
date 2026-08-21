@@ -794,6 +794,51 @@ class DriverLocationTrackingView(APIView):
         except Trips.DoesNotExist:
             return Response({"error": "Trip not found"}, status=404)
 
+
+class PassengerLocationTrackingView(APIView):
+    """REST fallback for passenger device location updates and retrieval."""
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, trip_id):
+        try:
+            trip = Trips.objects.get(id=trip_id)
+
+            # Only the rider for this trip may update passenger location
+            if not trip.rider or trip.rider.user_id != request.user.id:
+                return Response({"error": "Unauthorized"}, status=403)
+
+            lat = request.data.get('lat')
+            lng = request.data.get('lng')
+
+            if lat is None or lng is None:
+                return Response({"error": "Latitude and longitude required"}, status=400)
+
+            trip.passenger_lat = lat
+            trip.passenger_lng = lng
+            trip.save(update_fields=['passenger_lat', 'passenger_lng'])
+
+            return Response({"status": "success"})
+        except Trips.DoesNotExist:
+            return Response({"error": "Trip not found"}, status=404)
+
+    def get(self, request, trip_id):
+        try:
+            trip = Trips.objects.get(id=trip_id)
+
+            # Only the driver may retrieve the passenger live location (or the rider themself)
+            if not ((trip.driver and trip.driver.user == request.user) or (trip.rider and trip.rider.user == request.user)):
+                return Response({"error": "Unauthorized"}, status=403)
+
+            if trip.passenger_lat is None or trip.passenger_lng is None:
+                return Response({"error": "Passenger location not available"}, status=404)
+
+            return Response({
+                "passenger_lat": trip.passenger_lat,
+                "passenger_lng": trip.passenger_lng
+            })
+        except Trips.DoesNotExist:
+            return Response({"error": "Trip not found"}, status=404)
+
 class TripRouteView(APIView):
     permission_classes = [IsAuthenticated]
 

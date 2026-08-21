@@ -21,6 +21,7 @@ import {
   TrackingApiError,
   updateDriverLocation,
 } from '@/services/endpoints/tracking';
+import { getPassengerPosition } from '@/services/endpoints/tracking';
 import { decodePolyline } from '@/services/polylineUtils';
 
 const ROUTE_REFRESH_MS = 30000;
@@ -43,6 +44,7 @@ export default function PreRideTracking() {
   const [routeCoords, setRouteCoords] = useState<
     { latitude: number; longitude: number }[]
   >([]);
+  const [passengerCoord, setPassengerCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
 
   // Tracks whether the driver is currently dragging the map, so our
@@ -136,6 +138,31 @@ export default function PreRideTracking() {
     const interval = setInterval(fetchRoute, ROUTE_REFRESH_MS);
     return () => clearInterval(interval);
   }, [tripId, token, fetchRoute]);
+
+  // Poll passenger live location (REST fallback) so driver map can show passenger device
+  useEffect(() => {
+    if (!tripId || !token) return;
+
+    let cancelled = false;
+    const fetchPassenger = async () => {
+      try {
+        const data = await getPassengerPosition(tripId as string, token);
+        if (cancelled) return;
+        if (data && data.passenger_lat && data.passenger_lng) {
+          setPassengerCoord({ latitude: Number(data.passenger_lat), longitude: Number(data.passenger_lng) });
+        }
+      } catch (e) {
+        // ignore 404/unauthorized quietly — passenger location may not be available yet
+      }
+    };
+
+    void fetchPassenger();
+    const interval = setInterval(fetchPassenger, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [tripId, token]);
 
   // ── Driver GPS ──────────────────────────────────────────────────────────
   const { location: driverLoc, error: driverLocationError } = useDriverLocation({
@@ -317,6 +344,15 @@ export default function PreRideTracking() {
           <DriverMarker
             coordinate={driverCoord}
             heading={driverLoc?.heading ?? 0}
+          />
+        )}
+
+        {/* Live passenger device marker (if available) */}
+        {passengerCoord && (
+          <Marker
+            coordinate={passengerCoord}
+            title="Passenger"
+            pinColor="#2563EB"
           />
         )}
       </MapView>

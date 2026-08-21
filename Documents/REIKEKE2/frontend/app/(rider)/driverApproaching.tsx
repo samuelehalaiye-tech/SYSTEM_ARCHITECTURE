@@ -15,6 +15,7 @@ import { Shield, XCircle, LocateFixed } from 'lucide-react-native';
 import DriverMarker from '@/components/DriverMarker';
 import { YOLA_REGION } from '@/components/MapComponent';
 import { useDriverTracking } from '@/hooks/useDriverTracking';
+import { usePassengerLocation } from '@/hooks/usePassengerLocation';
 import { cancelTrip, getTripStatus } from '@/services/endpoints/rider';
 
 const TRIP_STATUS_REFRESH_MS = 5000;
@@ -112,6 +113,21 @@ export default function DriverApproaching() {
       enabled: !!tripId && !!token,
       initialDriverLocation: seededDriverLoc,
       routePhase,
+    });
+
+    // Send passenger device GPS to backend so drivers can see live passenger location
+    const { location: passengerLocation } = usePassengerLocation({
+      enabled: !!tripId && !!token,
+      onLocationUpdate: async (loc) => {
+        try {
+          if (!tripId || !token) return;
+          const { updatePassengerLocation } = await import('@/services/endpoints/tracking');
+          void updatePassengerLocation(tripId as string, loc, token);
+        } catch (e) {
+          console.error('Failed to update passenger location:', e);
+        }
+      },
+      intervalMs: 5000,
     });
 
   const driverCoord = driverLocation
