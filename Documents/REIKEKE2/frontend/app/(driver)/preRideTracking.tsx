@@ -9,7 +9,7 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Navigation, Play } from 'lucide-react-native';
+import { CheckCircle, Navigation, Play } from 'lucide-react-native';
 
 import DriverMarker from '@/components/DriverMarker';
 import { YOLA_REGION } from '@/components/MapComponent';
@@ -26,6 +26,18 @@ import { decodePolyline } from '@/services/polylineUtils';
 
 const ROUTE_REFRESH_MS = 30000;
 const USER_INTERACTION_COOLDOWN_MS = 5000;
+const CAMERA_HEADING_INTERVAL_MS = 1500;
+const CAMERA_HEADING_THRESHOLD = 12;
+
+const sameTripData = (current: any, next: any) =>
+  current?.trip_id === next?.trip_id &&
+  current?.status === next?.status &&
+  current?.otp === next?.otp &&
+  current?.pickup_lat === next?.pickup_lat &&
+  current?.pickup_lng === next?.pickup_lng &&
+  current?.dropoff_lat === next?.dropoff_lat &&
+  current?.dropoff_lng === next?.dropoff_lng &&
+  current?.rider_name === next?.rider_name;
 
 export default function PreRideTracking() {
   const params = useLocalSearchParams();
@@ -58,7 +70,8 @@ export default function PreRideTracking() {
   const locationFallbackBlockedRef = useRef(false);
   const lastRoutePolylineRef = useRef<string | null>(null);
   const hasRouteOnMapRef = useRef(false);
-  const hasPositionedCameraRef = useRef(false);
+  const lastCameraHeadingRef = useRef<number | null>(null);
+  const lastCameraHeadingAtRef = useRef(0);
 
   // ── Load token + trip data ──────────────────────────────────────────────
   useEffect(() => {
@@ -69,7 +82,7 @@ export default function PreRideTracking() {
       try {
         const trip = await getCurrentTrip(t);
         if (trip && trip.active !== false) {
-          setTripData(trip);
+          setTripData((current: any) => sameTripData(current, trip) ? current : trip);
         }
       } catch (e) {
         console.error('PreRideTracking init:', e);
@@ -78,11 +91,54 @@ export default function PreRideTracking() {
     init();
   }, []);
 
+  // Keep this screen in sync after the driver starts or completes the ride.
+  useEffect(() => {
+    if (!token || !tripId) return;
+
+    let cancelled = false;
+    const refreshTrip = async () => {
+      try {
+        const trip = await getCurrentTrip(token);
+        if (!cancelled && trip?.trip_id === tripId) {
+          setTripData((current: any) => sameTripData(current, trip) ? current : trip);
+        }
+      } catch (e) {
+        console.error('PreRideTracking status refresh:', e);
+      }
+    };
+
+    void refreshTrip();
+    const interval = setInterval(refreshTrip, 5000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [token, tripId]);
+
   // ── WebSocket — broadcast driver GPS to passenger ───────────────────────
   const { sendMessage } = useWebSocket({
     url: tripId ? `/ws/tracking/${tripId}/` : '',
     token,
     enabled: !!tripId && !!token,
+    onMessage: (data) => {
+      const loc = data.location ?? data;
+      if (
+        data.role === 'passenger' &&
+        loc.lat != null &&
+        loc.lng != null
+      ) {
+        const nextPassengerCoord = {
+          latitude: Number(loc.lat),
+          longitude: Number(loc.lng),
+        };
+        setPassengerCoord((current) =>
+          current?.latitude === nextPassengerCoord.latitude &&
+          current?.longitude === nextPassengerCoord.longitude
+            ? current
+            : nextPassengerCoord,
+        );
+      }
+    },
   });
 
   // ── Route to pickup — fetched from OUR OWN backend on a fixed interval,
@@ -149,7 +205,16 @@ export default function PreRideTracking() {
         const data = await getPassengerPosition(tripId as string, token);
         if (cancelled) return;
         if (data && data.passenger_lat && data.passenger_lng) {
-          setPassengerCoord({ latitude: Number(data.passenger_lat), longitude: Number(data.passenger_lng) });
+          const nextPassengerCoord = {
+            latitude: Number(data.passenger_lat),
+            longitude: Number(data.passenger_lng),
+          };
+          setPassengerCoord((current) =>
+            current?.latitude === nextPassengerCoord.latitude &&
+            current?.longitude === nextPassengerCoord.longitude
+              ? current
+              : nextPassengerCoord,
+          );
         }
       } catch (e) {
         // ignore 404/unauthorized quietly — passenger location may not be available yet
@@ -217,25 +282,29 @@ export default function PreRideTracking() {
           });
       }
 
-      // Keep the map stable after its initial position. The marker itself is
-      // animated for every GPS point; moving the entire camera every few
-      // seconds made the driver screen look as though it was refreshing.
+      const heading = loc.heading;
+      const now = Date.now();
+      const lastHeading = lastCameraHeadingRef.current;
+      const headingDelta =
+        lastHeading == null
+          ? Number.POSITIVE_INFINITY
+          : Math.abs(((heading - lastHeading + 540) % 360) - 180);
       if (
-        !hasPositionedCameraRef.current &&
+        mapReady &&
         !userInteractingRef.current &&
-        mapRef.current
+        (loc.speed ?? 0) > 0.5 &&
+        heading > 0 &&
+        headingDelta >= CAMERA_HEADING_THRESHOLD &&
+        now - lastCameraHeadingAtRef.current >= CAMERA_HEADING_INTERVAL_MS
       ) {
-        hasPositionedCameraRef.current = true;
-        mapRef.current.animateCamera(
-          {
-            center: { latitude: loc.lat, longitude: loc.lng },
-            heading: loc.heading ?? 0,
-            pitch: 45,
-            zoom: 17,
-          },
-          { duration: 800 },
+        lastCameraHeadingRef.current = heading;
+        lastCameraHeadingAtRef.current = now;
+        mapRef.current?.animateCamera(
+          { heading },
+          { duration: 500 },
         );
       }
+
     },
   });
 
@@ -255,7 +324,7 @@ export default function PreRideTracking() {
     };
   }, []);
 
-  // Pickup coordinate (Django returns Decimal strings — coerce to number)
+  // Pickup coordinates are still used for the route and initial map centre.
   const pickupLat = tripData?.pickup_lat ? Number(tripData.pickup_lat) : null;
   const pickupLng = tripData?.pickup_lng ? Number(tripData.pickup_lng) : null;
   const hasPickup = pickupLat !== null && pickupLng !== null;
@@ -263,33 +332,55 @@ export default function PreRideTracking() {
   const driverCoord = driverLoc
     ? { latitude: driverLoc.lat, longitude: driverLoc.lng }
     : null;
+  const isRideStarted = tripData?.status === 'STARTED';
+  const dropoffCoord =
+    tripData?.dropoff_lat != null && tripData?.dropoff_lng != null
+      ? {
+          latitude: Number(tripData.dropoff_lat),
+          longitude: Number(tripData.dropoff_lng),
+        }
+      : null;
 
-  // ── Once map is ready + we have both points, fit them on screen (once) ──
+  // ── Once map is ready + both live positions exist, fit them on screen ────
   const hasFitOnceRef = useRef(false);
   useEffect(() => {
     if (hasFitOnceRef.current) return;
-    if (!mapReady || !hasPickup || !driverCoord) return;
+    if (isRideStarted) return;
+    if (!mapReady || !driverCoord || !passengerCoord) return;
     hasFitOnceRef.current = true;
     setTimeout(() => {
       mapRef.current?.fitToCoordinates(
-        [driverCoord, { latitude: pickupLat!, longitude: pickupLng! }],
+        [driverCoord, passengerCoord],
         {
           edgePadding: { top: 80, right: 60, bottom: 280, left: 60 },
           animated: true,
         },
       );
     }, 600);
-  }, [mapReady, hasPickup, !!driverCoord]);
+  }, [mapReady, !!driverCoord, passengerCoord, isRideStarted]);
 
-  const handleStartRide = () => {
+  useEffect(() => {
+    if (!mapReady || !isRideStarted || !dropoffCoord) return;
+    mapRef.current?.animateCamera(
+      { center: dropoffCoord, zoom: 15 },
+      { duration: 800 },
+    );
+  }, [
+    mapReady,
+    isRideStarted,
+    dropoffCoord?.latitude,
+    dropoffCoord?.longitude,
+  ]);
+
+  const handleRideAction = () => {
     router.push({
       pathname: '/(driver)/otp-verify',
-      params: { tripId, action: 'start' },
+      params: { tripId, action: isRideStarted ? 'end' : 'start' },
     });
   };
 
   // ── Loading ─────────────────────────────────────────────────────────────
-  if (!token) {
+  if (!token || tripData?.status === 'COMPLETED') {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color="#FF8C00" />
@@ -321,21 +412,21 @@ export default function PreRideTracking() {
         onMapReady={() => setMapReady(true)}
         onPanDrag={handleUserInteraction}
       >
-        {/* Route from driver → pickup, refreshed every 30s from our backend */}
-        {routeCoords.length > 0 && (
+        {/* Live connection line: driver position to passenger position only. */}
+        {isRideStarted && routeCoords.length > 0 && (
           <Polyline
             coordinates={routeCoords}
-            strokeColor="#FF8C00"
+            strokeColor="#0EA5E9"
             strokeWidth={5}
           />
         )}
 
-        {/* Pickup pin */}
-        {hasPickup && (
-          <Marker
-            coordinate={{ latitude: pickupLat!, longitude: pickupLng! }}
-            title="Pickup"
-            pinColor="#22C55E"
+        {/* Live connection line between the two people in the ride. */}
+        {driverCoord && passengerCoord && (
+          <Polyline
+            coordinates={[driverCoord, passengerCoord]}
+            strokeColor="#FF8C00"
+            strokeWidth={5}
           />
         )}
 
@@ -353,6 +444,14 @@ export default function PreRideTracking() {
             coordinate={passengerCoord}
             title="Passenger"
             pinColor="#2563EB"
+          />
+        )}
+
+        {isRideStarted && dropoffCoord && (
+          <Marker
+            coordinate={dropoffCoord}
+            title="Dropoff"
+            pinColor="#EF4444"
           />
         )}
       </MapView>
@@ -386,11 +485,13 @@ export default function PreRideTracking() {
           </Text>
         )}
 
-        {/* Pickup name */}
+        {/* Current trip destination/status */}
         <View style={styles.pickupRow}>
           <Navigation size={16} color="#FF8C00" />
           <Text style={styles.pickupText} numberOfLines={1}>
-            {tripData?.pickup_location_name ?? 'Pickup Location'}
+            {isRideStarted
+              ? tripData?.dropoff_location_name ?? 'Dropoff Location'
+              : tripData?.pickup_location_name ?? 'Pickup Location'}
           </Text>
         </View>
 
@@ -407,9 +508,15 @@ export default function PreRideTracking() {
         </View>
 
         {/* Action button */}
-        <Pressable style={styles.startBtn} onPress={handleStartRide}>
-          <Play size={20} color="#fff" />
-          <Text style={styles.startBtnText}>Start Ride</Text>
+        <Pressable style={styles.startBtn} onPress={handleRideAction}>
+          {isRideStarted ? (
+            <CheckCircle size={20} color="#fff" />
+          ) : (
+            <Play size={20} color="#fff" />
+          )}
+          <Text style={styles.startBtnText}>
+            {isRideStarted ? 'End Ride' : 'Start Ride'}
+          </Text>
         </Pressable>
       </View>
     </View>

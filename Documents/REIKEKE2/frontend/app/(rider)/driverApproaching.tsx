@@ -91,22 +91,18 @@ export default function DriverApproaching() {
 
   const routePhase = tripData?.status === 'STARTED' ? 'dropoff' : 'pickup';
   const isRideStarted = routePhase === 'dropoff';
-  const targetLat = isRideStarted
-    ? tripData?.dropoff_lat
-    : tripData?.pickup_lat;
-  const targetLng = isRideStarted
-    ? tripData?.dropoff_lng
-    : tripData?.pickup_lng;
-  const targetCoord =
-    targetLat != null && targetLng != null
-      ? { latitude: Number(targetLat), longitude: Number(targetLng) }
+  const dropoffCoord =
+    tripData?.dropoff_lat != null && tripData?.dropoff_lng != null
+      ? {
+          latitude: Number(tripData.dropoff_lat),
+          longitude: Number(tripData.dropoff_lng),
+        }
       : null;
-  const targetTitle = isRideStarted ? 'Your Destination' : 'Your Pickup';
 
   // ── One hook handles: WebSocket live updates, REST polling fallback
   //    when the socket is down, and a throttled (30s) route/ETA refresh
   //    from the backend — no per-tick Google Directions calls from the client.
-  const { driverLocation, distance, eta, routeCoords, isConnected } =
+  const { driverLocation, distance, eta, routeCoords, isConnected, sendMessage } =
     useDriverTracking({
       tripId: (tripId as string) ?? null,
       token,
@@ -121,13 +117,14 @@ export default function DriverApproaching() {
       onLocationUpdate: async (loc) => {
         try {
           if (!tripId || !token) return;
+          sendMessage?.({ type: 'location', ...loc });
           const { updatePassengerLocation } = await import('@/services/endpoints/tracking');
-          void updatePassengerLocation(tripId as string, loc, token);
+          await updatePassengerLocation(tripId as string, loc, token);
         } catch (e) {
           console.error('Failed to update passenger location:', e);
         }
       },
-      intervalMs: 5000,
+      intervalMs: 2000,
     });
 
   const driverCoord = driverLocation
@@ -141,24 +138,44 @@ export default function DriverApproaching() {
 
   useEffect(() => {
     if (hasFitOnceRef.current) return;
-    if (!mapReady || !targetCoord || !driverCoord) return;
+    if (isRideStarted) return;
+    if (!mapReady || !driverCoord || !passengerLocation) return;
 
     hasFitOnceRef.current = true;
     setTimeout(() => {
       mapRef.current?.fitToCoordinates(
-        [driverCoord, targetCoord],
+        [driverCoord, {
+          latitude: passengerLocation.lat,
+          longitude: passengerLocation.lng,
+        }],
         {
           edgePadding: { top: 80, right: 60, bottom: 300, left: 60 },
           animated: true,
         },
       );
     }, 600);
-  }, [mapReady, targetCoord, driverCoord, routePhase]);
+  }, [mapReady, driverCoord, passengerLocation, routePhase, isRideStarted]);
+
+  useEffect(() => {
+    if (!mapReady || !isRideStarted || !dropoffCoord) return;
+    mapRef.current?.animateCamera(
+      { center: dropoffCoord, zoom: 15 },
+      { duration: 800 },
+    );
+  }, [
+    mapReady,
+    isRideStarted,
+    dropoffCoord?.latitude,
+    dropoffCoord?.longitude,
+  ]);
 
   const handleRecenter = () => {
-    if (!driverCoord || !targetCoord) return;
+    if (!driverCoord || !passengerLocation) return;
     mapRef.current?.fitToCoordinates(
-      [driverCoord, targetCoord],
+      [driverCoord, {
+        latitude: passengerLocation.lat,
+        longitude: passengerLocation.lng,
+      }],
       {
         edgePadding: { top: 80, right: 60, bottom: 300, left: 60 },
         animated: true,
@@ -205,6 +222,10 @@ export default function DriverApproaching() {
     );
   }
 
+  if (tripData?.status === 'COMPLETED') {
+    return <View style={styles.loader} />;
+  }
+
   return (
     <View style={styles.container}>
       {/* ── MAP ─────────────────────────────────────────────────────────── */}
@@ -213,37 +234,59 @@ export default function DriverApproaching() {
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFillObject}
         initialRegion={
-          targetCoord
+          driverCoord
             ? {
-                latitude: targetCoord.latitude,
-                longitude: targetCoord.longitude,
+                latitude: driverCoord.latitude,
+                longitude: driverCoord.longitude,
                 latitudeDelta: 0.04,
                 longitudeDelta: 0.04,
               }
             : YOLA_REGION
         }
-        showsUserLocation={true}
+        showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
+        rotateEnabled={true}
         onMapReady={() => setMapReady(true)}
       >
-        {/* Route polyline, decoded from the backend's traffic-aware
-            Directions response — refreshed every 30s by the hook,
-            NOT re-queried from Google on every GPS tick. */}
-        {routeCoords.length > 0 && (
+        {/* In-ride road route: driver/passenger group toward the dropoff. */}
+        {isRideStarted && routeCoords.length > 0 && (
           <Polyline
             coordinates={routeCoords}
+            strokeColor="#0EA5E9"
+            strokeWidth={5}
+          />
+        )}
+
+        {/* Live connection line between the two people in the ride. */}
+        {driverCoord && passengerLocation && (
+          <Polyline
+            coordinates={[driverCoord, {
+              latitude: passengerLocation.lat,
+              longitude: passengerLocation.lng,
+            }]}
             strokeColor="#FF8C00"
             strokeWidth={5}
           />
         )}
 
-        {/* Pickup before start; destination after start */}
-        {targetCoord && (
+        {/* Passenger's actual device position; this is independent of pickup. */}
+        {passengerLocation && (
           <Marker
-            coordinate={targetCoord}
-            title={targetTitle}
-            pinColor={isRideStarted ? '#EF4444' : '#22C55E'}
+            coordinate={{
+              latitude: passengerLocation.lat,
+              longitude: passengerLocation.lng,
+            }}
+            title="Your live location"
+            pinColor="#2563EB"
+          />
+        )}
+
+        {isRideStarted && dropoffCoord && (
+          <Marker
+            coordinate={dropoffCoord}
+            title="Dropoff"
+            pinColor="#EF4444"
           />
         )}
 

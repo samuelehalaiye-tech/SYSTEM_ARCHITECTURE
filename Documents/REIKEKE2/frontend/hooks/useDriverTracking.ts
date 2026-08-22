@@ -41,18 +41,20 @@ export function useDriverTracking(options: {
     if ((data.type === 'location' || data.type === 'location_update')) {
       const loc = data.location ?? data; // backend sends flat or nested
       if (loc.lat != null && loc.lng != null) {
-        setDriverLocation({
-          lat: Number(loc.lat),
-          lng: Number(loc.lng),
-          heading: loc.heading != null ? Number(loc.heading) : undefined,
-        });
+        if (data.role !== 'passenger') {
+          setDriverLocation({
+            lat: Number(loc.lat),
+            lng: Number(loc.lng),
+            heading: loc.heading != null ? Number(loc.heading) : undefined,
+          });
+        }
       }
       if (data.distance) setDistance(data.distance);
       if (data.eta) setEta(data.eta);
     }
   }, []);
 
-  const { isConnected } = useWebSocket({
+  const { sendMessage, isConnected } = useWebSocket({
     url: tripId ? `/ws/tracking/${tripId}/` : '',
     token,
     enabled: enabled && !!tripId && !!token,
@@ -124,5 +126,5 @@ export function useDriverTracking(options: {
     };
   }, [enabled, tripId, token, isConnected, pollLocation]);
 
-  return { driverLocation, distance, eta, routeCoords, isConnected, isLoading };
+  return { driverLocation, distance, eta, routeCoords, isConnected, isLoading, sendMessage };
 }

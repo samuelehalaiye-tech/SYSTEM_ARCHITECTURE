@@ -17,12 +17,13 @@ import { ShieldCheck, ArrowLeft } from 'lucide-react-native';
 export default function OTPVerifyScreen() {
   const { tripId, action } = useLocalSearchParams();
   const router = useRouter();
+  const actionValue = Array.isArray(action) ? action[0] : action;
   
   const [otp, setOtp] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   // 'action' will be either 'start' or 'end'
-  const isStarting = action === 'start';
+  const isStarting = actionValue === 'start';
   const titleText = isStarting ? 'Start Ride Verification' : 'End Ride Verification';
   const subtitleText = isStarting 
     ? "Ask the passenger for their 6-digit Start PIN to begin the trip." 
@@ -39,14 +40,16 @@ export default function OTPVerifyScreen() {
       const token = await AsyncStorage.getItem('userToken');
       if (!token || !tripId) throw new Error("Missing authentication or trip data.");
 
-      const response = await verifyTripOTP(tripId as string, otp, action as string, token);
+      const response = await verifyTripOTP(tripId as string, otp, actionValue as string, token);
       
       // Verification Successful!
       Alert.alert("Success", response.message);
       
-      // Push them back to the Home page. 
-      // The polling hook there will automatically pick up the new database state!
-      router.replace('/driverHome');
+      router.replace(
+        isStarting
+          ? { pathname: '/(driver)/preRideTracking' as any, params: { tripId: String(tripId) } }
+          : '/driverHome',
+      );
 
     } catch (error: any) {
     

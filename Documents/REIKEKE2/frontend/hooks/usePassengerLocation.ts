@@ -88,6 +88,22 @@ export function usePassengerLocation(options: {
         }
       );
 
+      // Seed the current device position immediately; watchPositionAsync may
+      // otherwise wait for the distance interval before producing a fix.
+      const currentPosition = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const currentLocation: LocationData = {
+        lat: currentPosition.coords.latitude,
+        lng: currentPosition.coords.longitude,
+        heading: currentPosition.coords.heading || 0,
+        speed: currentPosition.coords.speed || 0,
+        accuracy: currentPosition.coords.accuracy || 0,
+        timestamp: new Date(currentPosition.timestamp).toISOString(),
+      };
+      setLocation(currentLocation);
+      onLocationUpdateRef.current?.(currentLocation);
+
       // Background tracking (only if permission granted)
       if (bgStatus === 'granted') {
         const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);

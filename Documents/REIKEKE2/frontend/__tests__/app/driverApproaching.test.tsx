@@ -59,7 +59,7 @@ beforeEach(() => {
 });
 
 describe('DriverApproaching ride phases', () => {
-  it('shows the end PIN and destination marker for a started ride', async () => {
+  it('shows the end PIN without rendering a destination marker', async () => {
     (getTripStatus as jest.Mock).mockResolvedValue(startedTrip);
 
     const screen = render(<DriverApproaching />);
@@ -73,12 +73,9 @@ describe('DriverApproaching ride phases', () => {
     });
 
     const destinationMarker = screen
-      .UNSAFE_getAllByType('Marker' as any)
+      .UNSAFE_queryAllByType('Marker' as any)
       .find((marker) => marker.props.title === 'Your Destination');
-    expect(destinationMarker?.props.coordinate).toEqual({
-      latitude: 9.22,
-      longitude: 12.49,
-    });
+    expect(destinationMarker).toBeUndefined();
   });
 
   it('refreshes status so the screen moves from start PIN to end PIN', async () => {
