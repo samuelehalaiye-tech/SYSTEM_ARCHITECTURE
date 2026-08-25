@@ -9,6 +9,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 
 import { getTripStatus, cancelTrip } from '@/services/endpoints/rider'; 
 import { BASE_URL } from '@/services/config';
+import { getMyProfile } from '@/services/endpoints/auth';
 import {
   MapPin,
   Navigation,
@@ -27,6 +28,22 @@ export default function PassengerHome() {
   const [pickupCoords, setPickupCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [dropoffCoords, setDropoffCoords] = useState<{lat: number | null, lng: number | null}>({ lat: null, lng: null });
   const [activeTrip, setActiveTrip] = useState<any>(null);
+  const [phoneNumber, setPhoneNumber] = useState('');
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) return;
+        const profile = await getMyProfile(token);
+        setPhoneNumber(profile.phone_number || '');
+      } catch (error) {
+        console.error('Failed to load rider profile:', error);
+      }
+    };
+
+    loadProfile();
+  }, []);
 
 useEffect(() => {
   const loadLocations = async () => {
@@ -199,12 +216,12 @@ useEffect(() => {
 
   return (
     <View style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF8C00" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       
       {/* Dynamic Header padding based on device notch */}
       <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <Text style={styles.headerTitle}>Keke Napep</Text>
-        <Text style={styles.headerSubtitle}>Yola Private Engine</Text>
+        <Text style={styles.headerSubtitle}>{phoneNumber || 'Yola Private Engine'}</Text>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
@@ -259,7 +276,7 @@ useEffect(() => {
           disabled={cancelling}
         >
           {cancelling ? (
-            <ActivityIndicator size="small" color="#FFF" />
+            <ActivityIndicator size="small" color="#DC2626" />
           ) : (
             <Text style={styles.cancelButtonText}>Cancel Ride</Text>
           )}
@@ -367,14 +384,16 @@ useEffect(() => {
     router.replace('/(auth)');
   }}
   style={{
-    backgroundColor: '#EF4444',
+    backgroundColor: '#FFFFFF',
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
-    marginTop: 15
+    marginTop: 15,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
   }}
 >
-  <Text style={{ color: 'white', fontWeight: 'bold' }}>
+  <Text style={{ color: '#DC2626', fontWeight: '600' }}>
     Logout
   </Text>
 </Pressable>
@@ -386,50 +405,57 @@ useEffect(() => {
 
 const styles = StyleSheet.create({
   cancelButton: {
-  backgroundColor: '#EF4444',
+  backgroundColor: '#FFFFFF',
   paddingVertical: 12,
   borderRadius: 10,
   alignItems: 'center',
-  marginTop: 10
+  marginTop: 10,
+  borderWidth: 1.5,
+  borderColor: '#FCA5A5',
 },
 cancelButtonText: {
-  color: '#FFFFFF',
-  fontWeight: 'bold',
+  color: '#DC2626',
+  fontWeight: '600',
   fontSize: 16
 },
 buttonDisabled2: {
   opacity: 0.5
 },
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
+  safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
   header: { 
-    backgroundColor: '#FF8C00', 
+    backgroundColor: '#FFFFFF', 
     paddingHorizontal: 24, 
-    paddingBottom: 30, 
-    borderBottomLeftRadius: 30, 
-    borderBottomRightRadius: 30 
+    paddingBottom: 20, 
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
-  headerTitle: { fontSize: 28, fontWeight: 'bold', color: '#FFFFFF' },
-  headerSubtitle: { fontSize: 16, color: '#FFFFFF', opacity: 0.9 },
+  headerTitle: { fontSize: 22, fontWeight: '700', color: '#111827', letterSpacing: -0.4 },
+  headerSubtitle: { fontSize: 14, color: '#6B7280', marginTop: 4 },
   container: { flex: 1, padding: 20 },
   inputCard: { 
-    backgroundColor: 'white', 
+    backgroundColor: '#FFFFFF', 
     borderRadius: 16, 
     padding: 16, 
-    elevation: 10, 
-    shadowColor: '#000', 
-    shadowOpacity: 0.1, 
-    shadowRadius: 10 
+    elevation: 1, 
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04, 
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
   },
   driverInfoBox: {
   marginTop: 16,
   padding: 14,
-  backgroundColor: '#1F2937',
+  backgroundColor: '#FFFFFF',
   borderRadius: 12,
   alignItems: 'center',
   gap: 8,
+  borderWidth: 1,
+  borderColor: '#EFEFEF',
 },
 driverInfoName: {
-  color: '#FFFFFF',
+  color: '#111827',
   fontSize: 16,
   fontWeight: '600',
 },
@@ -440,27 +466,50 @@ plateBadge: {
   borderRadius: 8,
 },
 plateBadgeText: {
-  color: '#111827',
-  fontWeight: 'bold',
+  color: '#FFFFFF',
+  fontWeight: '700',
   fontSize: 16,
   letterSpacing: 1,
 },
-  input: { backgroundColor: '#F3F4F6', padding: 12, borderRadius: 8, fontSize: 16 },
+  input: { backgroundColor: '#F9FAFB', paddingVertical: 14, paddingHorizontal: 14, borderRadius: 10, fontSize: 16, borderWidth: 1.5, borderColor: '#E5E7EB', color: '#111827' },
   listView: { position: 'absolute', top: 50, left: 0, right: 0, backgroundColor: 'white', zIndex: 1000, elevation: 5 },
-  confirmButton: { backgroundColor: '#FF8C00', paddingVertical: 18, borderRadius: 12, alignItems: 'center', marginTop: 'auto' },
-  buttonDisabled: { backgroundColor: '#D1D5DB' },
-  confirmButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
-  statusCard: { backgroundColor: '#111827', padding: 20, borderRadius: 20 },
+  confirmButton: {
+    backgroundColor: '#FF8C00',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    marginTop: 'auto',
+    shadowColor: '#FF8C00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  buttonDisabled: { backgroundColor: '#D1D5DB', shadowOpacity: 0, elevation: 0 },
+  confirmButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+  statusCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+    marginBottom: 16,
+  },
   dashboardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
   statusBadge: { backgroundColor: '#FF8C00', paddingVertical: 4, paddingHorizontal: 12, borderRadius: 20 },
-  statusBadgeText: { color: 'white', fontWeight: 'bold', fontSize: 12 },
-  sosButton: { backgroundColor: '#EF4444', padding: 10, borderRadius: 10 },
-  sosText: { color: 'white', fontWeight: 'bold' },
-  mainStatusText: { color: 'white', fontSize: 18, fontWeight: 'bold', textAlign: 'center' },
-  otpContainer: { marginTop: 20, padding: 20, backgroundColor: '#1F2937', borderRadius: 15, alignItems: 'center' },
-  otpLabel: { color: '#9CA3AF', fontSize: 11, marginBottom: 10 },
-  otpValue: { color: '#FF8C00', fontSize: 48, fontWeight: 'bold', letterSpacing: 10 },
-  successText: { color: '#10B981', textAlign: 'center', fontWeight: 'bold', fontSize: 18 },
+  statusBadgeText: { color: 'white', fontWeight: '700', fontSize: 12 },
+  sosButton: { backgroundColor: '#DC2626', padding: 10, borderRadius: 10 },
+  sosText: { color: 'white', fontWeight: '700' },
+  mainStatusText: { color: '#111827', fontSize: 18, fontWeight: '700', textAlign: 'center', letterSpacing: -0.3 },
+  otpContainer: { marginTop: 20, padding: 20, backgroundColor: '#FAFAFA', borderRadius: 14, alignItems: 'center', borderWidth: 1, borderColor: '#EFEFEF' },
+  otpLabel: { color: '#6B7280', fontSize: 11, marginBottom: 10, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  otpValue: { color: '#FF8C00', fontSize: 48, fontWeight: '700', letterSpacing: 10 },
+  successText: { color: '#059669', textAlign: 'center', fontWeight: '700', fontSize: 18 },
 
 
 
@@ -492,11 +541,14 @@ locationLabel: {
   fontSize: 12,
   color: '#6B7280',
   marginBottom: 3,
+  fontWeight: '600',
+  textTransform: 'uppercase',
+  letterSpacing: 0.4,
 },
 
 locationValue: {
   fontSize: 16,
-  fontWeight: '600',
+  fontWeight: '500',
   color: '#111827',
 },
 

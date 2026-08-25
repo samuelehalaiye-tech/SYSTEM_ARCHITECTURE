@@ -66,7 +66,7 @@ export default function LocationSearch() {
             style={styles.backButton}
             hitSlop={10}
           >
-            <ArrowLeft size={24} color="#111827" />
+            <ArrowLeft size={24} color="#6B7280" />
           </Pressable>
 
           <View style={styles.headerTextContainer}>
@@ -129,7 +129,7 @@ export default function LocationSearch() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAFAFA',
   },
 
   container: {
@@ -142,8 +142,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 18,
+    backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: '#F0F0F0',
   },
 
   backButton: {
@@ -152,8 +153,10 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: '#F9FAFB',
     marginRight: 14,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
 
   headerTextContainer: {
@@ -164,6 +167,7 @@ const styles = StyleSheet.create({
     fontSize: 21,
     fontWeight: '700',
     color: '#111827',
+    letterSpacing: -0.4,
   },
 
   subtitle: {
@@ -186,9 +190,11 @@ const styles = StyleSheet.create({
 
   searchLabel: {
     marginLeft: 8,
-    fontSize: 15,
+    fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: '#6B7280',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 
   autocompleteContainer: {
@@ -196,12 +202,14 @@ const styles = StyleSheet.create({
   },
 
   searchInput: {
-    backgroundColor: '#F3F4F6',
-    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
     paddingHorizontal: 16,
-    paddingVertical: 15,
+    paddingVertical: 14,
     fontSize: 16,
     color: '#111827',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
   },
 
   resultsList: {

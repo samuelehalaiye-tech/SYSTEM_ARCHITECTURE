@@ -1,0 +1,50 @@
+[
+    {
+        "name": "Yola",
+        "category": "fast_food",
+        "latitude": 9.2714837,
+        "longitude": 12.4052145
+    },
+    {
+        "name": "Nassarawo Clinic",
+        "category": "hospital",
+        "latitude": 9.2801823,
+        "longitude": 12.443967
+    },
+    {
+        "name": "Ajiua Health Centre",
+        "category": "clinic",
+        "latitude": 9.278297,
+        "longitude": 12.458884
+    },
+    {
+        "name": "Smart Cafe",
+        "category": "cafe",
+        "latitude": 9.2129445,
+        "longitude": 12.4721809
+    },
+    {
+        "name": "Unnamed Location",
+        "category": "bicycle_parking",
+        "latitude": 9.2845225,
+        "longitude": 12.4090367
+    },
+    {
+        "name": "Hammawa Primary School",
+        "category": "school",
+        "latitude": 9.2067581,
+        "longitude": 12.4864514
+    },
+    {
+        "name": "Adamawa Agricultural Development Program",
+        "category": "school",
+        "latitude": 9.2077721,
+        "longitude": 12.4876115
+    },
+    {
+        "name": "School for Arqabic and Islamic Studies",
+        "category": "school",
+        "latitude": 9.2066747,
+        "longitude": 12.4877952
+    }
+]

@@ -1,8 +1,7 @@
 import React from 'react';
 import { View, Text, Pressable, StyleSheet } from 'react-native';
-import { Car, User } from 'lucide-react-native';
+import { Car, User, ChevronRight } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
-// 1. Import the Root View
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 interface RoleSelectionProps {
@@ -13,46 +12,64 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
   const router = useRouter();
 
   return (
-    // 2. Wrap the entire UI. flex: 1 is mandatory here.
     <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         <View style={styles.content}>
           {/* Header Section */}
           <View style={styles.header}>
-            <Text style={styles.title}>REIKEKE</Text>
-            <Text style={styles.subtitle}>Select your role</Text>
+            <Text style={styles.eyebrow}>WELCOME TO REIKEKE</Text>
+            <Text style={styles.title}>How will you ride today?</Text>
+            <Text style={styles.subtitle}>
+              Choose how you'd like to use the app.
+            </Text>
           </View>
 
-          {/* Buttons Section */}
-          <View style={styles.buttonContainer}>
-            {/* Driver Button */}
-            <Pressable 
+          {/* Options Section */}
+          <View style={styles.optionContainer}>
+            {/* Driver Option */}
+            <Pressable
               onPress={() => {
                 console.log("Driver Pressed");
                 router.push('/(driver)/driverLogin');;
               }}
               style={({ pressed }) => [
-                styles.primaryButton,
-                pressed && styles.buttonPressed
+                styles.optionCard,
+                pressed && styles.optionCardPressed
               ]}
             >
-              <Car size={32} color="#FFFFFF" />
-              <Text style={styles.primaryButtonText}>I'm a Driver</Text>
+              <View style={styles.iconBadge}>
+                <Car size={22} color="#FF8C00" />
+              </View>
+              <View style={styles.optionTextGroup}>
+                <Text style={styles.optionTitle}>I'm a Driver</Text>
+                <Text style={styles.optionDescription}>
+                  Accept rides and earn on your schedule
+                </Text>
+              </View>
+              <ChevronRight size={20} color="#9CA3AF" />
             </Pressable>
 
-            {/* Passenger Button */}
-            <Pressable 
+            {/* Passenger Option */}
+            <Pressable
               onPress={() => {
                 console.log("Passenger Pressed");
                 router.replace('/riderLogin');
               }}
               style={({ pressed }) => [
-                styles.outlineButton,
-                pressed && styles.outlineButtonPressed
+                styles.optionCard,
+                pressed && styles.optionCardPressed
               ]}
             >
-              <User size={32} color="#FF8C00" />
-              <Text style={styles.outlineButtonText}>I'm a Passenger</Text>
+              <View style={styles.iconBadge}>
+                <User size={22} color="#FF8C00" />
+              </View>
+              <View style={styles.optionTextGroup}>
+                <Text style={styles.optionTitle}>I'm a Passenger</Text>
+                <Text style={styles.optionDescription}>
+                  Book a keke and get where you're going
+                </Text>
+              </View>
+              <ChevronRight size={20} color="#9CA3AF" />
             </Pressable>
           </View>
         </View>
@@ -64,67 +81,80 @@ export default function RoleSelection({ onSelectRole }: RoleSelectionProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FAFAFA',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
   content: {
     width: '100%',
-    maxWidth: 400, 
+    maxWidth: 400,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
+  },
+  eyebrow: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#FF8C00',
+    letterSpacing: 1.2,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#FF8C00',
+    fontSize: 26,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: -0.5,
+    lineHeight: 32,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#4B5563',
+    fontSize: 15,
+    color: '#6B7280',
     marginTop: 8,
+    lineHeight: 20,
   },
-  buttonContainer: {
-    gap: 16, 
+  optionContainer: {
+    gap: 12,
   },
-  primaryButton: {
-    backgroundColor: '#FF8C00',
+  optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    borderRadius: 12,
-    gap: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    padding: 16,
+    gap: 14,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: '600',
+  optionCardPressed: {
+    backgroundColor: '#FFFAF3',
+    borderColor: '#FFD9A8',
   },
-  outlineButton: {
-    backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: '#FF8C00',
-    flexDirection: 'row',
+  iconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#FFF3E0',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: 24,
-    borderRadius: 12,
-    gap: 16,
   },
-  outlineButtonText: {
-    color: '#FF8C00',
-    fontSize: 20,
+  optionTextGroup: {
+    flex: 1,
+  },
+  optionTitle: {
+    fontSize: 16,
     fontWeight: '600',
+    color: '#111827',
+    marginBottom: 2,
   },
-  buttonPressed: {
-    backgroundColor: '#FF7700',
-    opacity: 0.9,
-  },
-  outlineButtonPressed: {
-    backgroundColor: '#FFF5E6',
+  optionDescription: {
+    fontSize: 13,
+    color: '#6B7280',
+    lineHeight: 18,
   },
 });

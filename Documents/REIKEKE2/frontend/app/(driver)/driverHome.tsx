@@ -14,6 +14,7 @@ import { Phone, List, Play, CheckCircle, XCircle } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage'; 
 import { useRouter } from 'expo-router'; 
 import { getDriverProfile } from '../../services/endpoints/driver';
+import { getMyProfile } from '../../services/endpoints/auth';
 
 
 // Make sure you import the new getCurrentTrip function!
@@ -28,8 +29,25 @@ export default function DriverHome({ phone }: DriverHomeProps) {
   const [isOnline, setIsOnline] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [activeTrip, setActiveTrip] = useState<any>(null); // The new state for our trip
+  const [phoneNumber, setPhoneNumber] = useState(phone || '');
   const router = useRouter(); 
 
+
+
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const token = await AsyncStorage.getItem('userToken');
+        if (!token) return;
+        const profile = await getMyProfile(token);
+        setPhoneNumber(profile.phone_number || '');
+      } catch (error) {
+        console.error('Failed to load driver profile:', error);
+      }
+    };
+
+    loadProfile();
+  }, []);
 
 
   useEffect(() => {
@@ -171,7 +189,7 @@ const checkVehicleInfo = async () => {
         <View style={styles.phoneContainer}>
           <Phone size={16} color="#FFFFFF" />
           {/* Use short-circuiting to ensure string is never null */}
-          <Text style={styles.phoneText}>{phone || '---'}</Text>
+          <Text style={styles.phoneText}>{phoneNumber || '---'}</Text>
         </View>
       </View>
 
@@ -259,41 +277,160 @@ const checkVehicleInfo = async () => {
         
         <View style={{ flex: 1 }} />
         <Pressable onPress={() => router.push('/vehicleInfo')} style={styles.vehicleInfoButton}>
-  <Text style={{ color: '#FF8C00', fontWeight: 'bold' }}>Update Vehicle Info</Text>
+  <Text style={{ color: '#FF8C00', fontWeight: '600', fontSize: 15 }}>Update Vehicle Info</Text>
 </Pressable>
         <Pressable onPress={handleLogout} style={styles.logoutButton}>
-          <Text style={{color: '#FFFFFF', fontWeight: 'bold'}}>Logout</Text>
-        </Pressable>
+  <Text style={{ color: '#DC2626', fontWeight: '600', fontSize: 15 }}>Logout</Text>
+</Pressable>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { backgroundColor: '#FF8C00', padding: 24, paddingTop: 40, borderBottomLeftRadius: 20, borderBottomRightRadius: 20 },
-  headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#FFFFFF' },
-  phoneContainer: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 8 },
-  phoneText: { color: '#FFFFFF', fontSize: 16, opacity: 0.9 },
-  container: { flex: 1, padding: 24, gap: 20 },
-  statusCard: { backgroundColor: '#F9FAFB', padding: 24, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: '#F3F4F6' },
-  statusLabel: { fontSize: 14, color: '#6B7280', textTransform: 'uppercase', letterSpacing: 1 },
-  statusValue: { fontSize: 22, fontWeight: 'bold', marginTop: 4 },
-  switchScale: { transform: [{ scaleX: 1.2 }, { scaleY: 1.2 }] },
-  offersButton: { backgroundColor: '#FF8C00', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 18, borderRadius: 12, gap: 12, elevation: 3 },
-  disabledButton: { opacity: 0.7 },
-  offersButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
-  buttonPressed: { backgroundColor: '#FF7700' },
-  hintText: { textAlign: 'center', color: '#9CA3AF', fontSize: 14, marginTop: 10 },
-  logoutButton: { backgroundColor: '#FF8C00', paddingVertical: 15, paddingHorizontal: 25, borderRadius: 12, borderWidth: 2, borderColor: '#E57C00', alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FAFAFA',
+  },
+  header: {
+    backgroundColor: '#FFFFFF',
+    padding: 24,
+    paddingTop: 40,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: -0.3,
+  },
+  phoneContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 6,
+    gap: 6,
+  },
+  phoneText: {
+    color: '#6B7280',
+    fontSize: 14,
+  },
+  container: {
+    flex: 1,
+    padding: 20,
+    gap: 16,
+  },
+  statusCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
+    elevation: 1,
+  },
+  statusLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  statusValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    marginTop: 4,
+  },
+  switchScale: {
+    transform: [{ scaleX: 1.1 }, { scaleY: 1.1 }],
+  },
+  offersButton: {
+    backgroundColor: '#FF8C00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 10,
+    shadowColor: '#FF8C00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  disabledButton: {
+    opacity: 0.5,
+    shadowOpacity: 0,
+    elevation: 0,
+  },
+  offersButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  buttonPressed: {
+    backgroundColor: '#E67E00',
+  },
+  hintText: {
+    textAlign: 'center',
+    color: '#9CA3AF',
+    fontSize: 13,
+    marginTop: 10,
+  },
+  logoutButton: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 14,
+    paddingHorizontal: 25,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   vehicleInfoButton: {
-  paddingVertical: 12,
-  alignItems: 'center',
-},
-  // NEW STYLES FOR THE TRIP CARD
-  activeTripCard: { backgroundColor: '#FFFBEB', padding: 20, borderRadius: 16, borderWidth: 2, borderColor: '#FEF3C7', gap: 15 },
-  activeTripTitle: { fontSize: 18, fontWeight: 'bold', color: '#92400E' },
-  actionRow: { flexDirection: 'row', gap: 12 },
-  actionButton: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 14, borderRadius: 10, gap: 8 },
-  actionButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 16 },
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  activeTripCard: {
+    backgroundColor: '#FFFFFF',
+    padding: 20,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#FEE8C7',
+    gap: 14,
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 6,
+    elevation: 1,
+  },
+  activeTripTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#92400E',
+  },
+  actionRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 13,
+    borderRadius: 10,
+    gap: 8,
+  },
+  actionButtonText: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+    fontSize: 15,
+  },
 });

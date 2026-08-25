@@ -98,16 +98,16 @@ export default function RiderSignupPage() {
             {/* Password Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.passwordContainer}>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={styles.passwordInput}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   placeholder="••••••••"
                 />
-                <Pressable onPress={() => setShowPassword(!showPassword)} style={{ marginLeft: 8, padding: 4 }}>
-                  {showPassword ? <EyeOff size={20} color="#FF8C00" /> : <Eye size={20} color="#FF8C00" />}
+                <Pressable onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
+                  {showPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
                 </Pressable>
               </View>
             </View>
@@ -115,16 +115,16 @@ export default function RiderSignupPage() {
             {/* Confirm Password */}
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Confirm Password</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.passwordContainer}>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={styles.passwordInput}
                   value={confirmPassword}
                   onChangeText={setConfirmPassword}
                   secureTextEntry={!showPassword}
                   placeholder="••••••••"
                 />
-                <Pressable onPress={() => setShowPassword(!showPassword)} style={{ marginLeft: 8, padding: 4 }}>
-                  {showPassword ? <EyeOff size={20} color="#FF8C00" /> : <Eye size={20} color="#FF8C00" />}
+                <Pressable onPress={() => setShowPassword(!showPassword)} style={{ padding: 4 }}>
+                  {showPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
                 </Pressable>
               </View>
             </View>

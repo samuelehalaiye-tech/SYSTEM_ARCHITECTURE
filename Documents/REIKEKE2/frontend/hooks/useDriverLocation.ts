@@ -15,6 +15,33 @@ interface LocationData {
   timestamp: string;
 }
 
+const MAP_MOVE_METERS = 10;
+const MAP_HEADING_DEGREES = 15;
+
+function headingDelta(a: number, b: number) {
+  return Math.abs(((b - a + 540) % 360) - 180);
+}
+
+/** Skip tiny GPS jitter so the map is not redrawn on every native location event. */
+export function shouldUpdateMapLocation(
+  prev: LocationData | null,
+  next: LocationData,
+  minMeters = MAP_MOVE_METERS,
+  minHeading = MAP_HEADING_DEGREES,
+) {
+  if (!prev) return true;
+
+  const latMeters = (next.lat - prev.lat) * 111000;
+  const lngMeters =
+    (next.lng - prev.lng) * 111000 * Math.cos((prev.lat * Math.PI) / 180);
+  const movedMeters = Math.hypot(latMeters, lngMeters);
+
+  return (
+    movedMeters >= minMeters ||
+    headingDelta(prev.heading, next.heading) >= minHeading
+  );
+}
+
 TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
   if (error) {
     console.error('Background location task error:', error);
@@ -32,7 +59,6 @@ TaskManager.defineTask(BACKGROUND_LOCATION_TASK, async ({ data, error }) => {
         accuracy: loc.coords.accuracy || 0,
         timestamp: new Date(loc.timestamp).toISOString(),
       };
-      // Emit the event to the foreground app
       DeviceEventEmitter.emit(LOCATION_UPDATE_EVENT, locationData);
     }
   }
@@ -48,15 +74,26 @@ export function useDriverLocation(options: {
   const [isTracking, setIsTracking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const locationSubRef = useRef<Location.LocationSubscription | null>(null);
+  const lastMapLocationRef = useRef<LocationData | null>(null);
 
-  // Keep a ref to the latest callback so we don't restart tracking on callback change
   const onLocationUpdateRef = useRef(onLocationUpdate);
   useEffect(() => {
     onLocationUpdateRef.current = onLocationUpdate;
   }, [onLocationUpdate]);
 
+  const publishLocation = useCallback((locationData: LocationData) => {
+    onLocationUpdateRef.current?.(locationData);
+    if (!shouldUpdateMapLocation(lastMapLocationRef.current, locationData)) {
+      return;
+    }
+    lastMapLocationRef.current = locationData;
+    setLocation(locationData);
+  }, []);
+
   const startTracking = useCallback(async () => {
     try {
+      if (locationSubRef.current) return;
+
       const { status: fgStatus } = await Location.requestForegroundPermissionsAsync();
       if (fgStatus !== 'granted') {
         setError('Foreground location permission denied');
@@ -68,12 +105,11 @@ export function useDriverLocation(options: {
         console.warn('Background location permission denied. Tracking will only work in foreground.');
       }
 
-      // Foreground tracking
       locationSubRef.current = await Location.watchPositionAsync(
         {
-          accuracy: Location.Accuracy.High,
+          accuracy: Location.Accuracy.Balanced,
           timeInterval: intervalMs,
-          distanceInterval: 5,
+          distanceInterval: 10,
         },
         (loc) => {
           const locationData: LocationData = {
@@ -84,19 +120,17 @@ export function useDriverLocation(options: {
             accuracy: loc.coords.accuracy || 0,
             timestamp: new Date(loc.timestamp).toISOString(),
           };
-          setLocation(locationData);
-          onLocationUpdateRef.current?.(locationData);
+          publishLocation(locationData);
         }
       );
 
-      // Background tracking (only if permission granted)
       if (bgStatus === 'granted') {
         const isRegistered = await TaskManager.isTaskRegisteredAsync(BACKGROUND_LOCATION_TASK);
         if (!isRegistered) {
           await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-            accuracy: Location.Accuracy.High,
+            accuracy: Location.Accuracy.Balanced,
             timeInterval: intervalMs,
-            distanceInterval: 5,
+            distanceInterval: 10,
             showsBackgroundLocationIndicator: true,
             foregroundService: {
               notificationTitle: 'REIKEKE Driver',
@@ -113,7 +147,7 @@ export function useDriverLocation(options: {
       setError(e.message || 'Failed to start tracking');
       setIsTracking(false);
     }
-  }, [intervalMs]);
+  }, [intervalMs, publishLocation]);
 
   const stopTracking = useCallback(async () => {
     if (locationSubRef.current) {
@@ -133,34 +167,33 @@ export function useDriverLocation(options: {
     setIsTracking(false);
   }, []);
 
-  // Listen for background updates
+  const startTrackingRef = useRef(startTracking);
+  const stopTrackingRef = useRef(stopTracking);
+  startTrackingRef.current = startTracking;
+  stopTrackingRef.current = stopTracking;
+
   useEffect(() => {
     const subscription = DeviceEventEmitter.addListener(LOCATION_UPDATE_EVENT, (locationData: LocationData) => {
-      setLocation(locationData);
-      onLocationUpdateRef.current?.(locationData);
+      publishLocation(locationData);
     });
 
     return () => {
       subscription.remove();
     };
-  }, []);
+  }, [publishLocation]);
 
   useEffect(() => {
-    let mounted = true;
-    
-    if (enabled && !isTracking) {
-      startTracking();
-    } else if (!enabled && isTracking) {
-      stopTracking();
+    if (!enabled) {
+      lastMapLocationRef.current = null;
+      void stopTrackingRef.current();
+      return;
     }
 
+    void startTrackingRef.current();
     return () => {
-      mounted = false;
-      if (isTracking) {
-        stopTracking();
-      }
+      void stopTrackingRef.current();
     };
-  }, [enabled, isTracking, startTracking, stopTracking]);
+  }, [enabled]);
 
   return { location, isTracking, error, startTracking, stopTracking };
 }

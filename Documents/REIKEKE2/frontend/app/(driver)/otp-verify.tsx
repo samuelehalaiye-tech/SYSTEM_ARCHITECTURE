@@ -64,7 +64,7 @@ export default function OTPVerifyScreen() {
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color="#111827" />
+            <ArrowLeft size={24} color="#6B7280" />
         </Pressable>
         <Text style={styles.headerTitle}>Verification</Text>
       </View>
@@ -110,18 +110,45 @@ export default function OTPVerifyScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#F3F4F6' },
+  safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderColor: '#F0F0F0',
+  },
   backButton: { paddingRight: 15 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#111827', letterSpacing: -0.3 },
   container: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center', paddingBottom: 100 },
   icon: { marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: 'bold', color: '#111827', marginBottom: 12, textAlign: 'center' },
+  title: { fontSize: 24, fontWeight: '700', color: '#111827', marginBottom: 12, textAlign: 'center', letterSpacing: -0.4 },
   subtitle: { fontSize: 16, color: '#6B7280', textAlign: 'center', marginBottom: 40, lineHeight: 24, paddingHorizontal: 10 },
   inputContainer: { width: '100%', alignItems: 'center', marginBottom: 40 },
-  otpInput: { fontSize: 40, fontWeight: 'bold', color: '#111827', letterSpacing: 8, textAlign: 'center', borderBottomWidth: 2, borderColor: '#FF8C00', paddingVertical: 10, width: '80%' },
-  verifyButton: { width: '100%', paddingVertical: 18, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
-  verifyButtonActive: { backgroundColor: '#FF8C00', elevation: 3 },
-  verifyButtonDisabled: { backgroundColor: '#F3F4F6' },
-  verifyButtonText: { color: '#FFFFFF', fontSize: 18, fontWeight: 'bold' },
+  otpInput: {
+    fontSize: 32,
+    fontWeight: '700',
+    color: '#111827',
+    letterSpacing: 8,
+    textAlign: 'center',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    width: '80%',
+  },
+  verifyButton: { width: '100%', paddingVertical: 16, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  verifyButtonActive: {
+    backgroundColor: '#FF8C00',
+    shadowColor: '#FF8C00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  verifyButtonDisabled: { backgroundColor: '#D1D5DB' },
+  verifyButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

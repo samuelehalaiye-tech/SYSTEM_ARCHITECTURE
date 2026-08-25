@@ -121,10 +121,10 @@ export default function DriverOffers({ onBack }: { onBack: () => void }) {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#FF8C00" />
+      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
       <View style={styles.header}>
         <Pressable onPress={onBack} style={styles.backButton}>
-          <ArrowLeft size={24} color="#FFF" />
+          <ArrowLeft size={24} color="#6B7280" />
           <Text style={styles.backText}>Back</Text>
         </Pressable>
         <Text style={styles.headerTitle}>Ride Offers</Text>
@@ -155,25 +155,29 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF' 
   },
   header: {
-    backgroundColor: '#FF8C00',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 25,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F0F0F0',
   },
   backButton: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    marginBottom: 10 
+    marginBottom: 14,
   },
   backText: { 
-    color: '#FFF', 
-    fontSize: 16, 
-    marginLeft: 8 
+    color: '#6B7280', 
+    fontSize: 15,
+    fontWeight: '500',
+    marginLeft: 6,
   },
   headerTitle: { 
-    color: '#FFF', 
-    fontSize: 24, 
-    fontWeight: 'bold' 
+    color: '#111827', 
+    fontSize: 20, 
+    fontWeight: '700',
+    letterSpacing: -0.3,
   },
   listContent: { 
     padding: 20 
@@ -181,7 +185,7 @@ const styles = StyleSheet.create({
   card: {
     borderWidth: 1,
     borderColor: '#E5E7EB',
-    borderRadius: 16, // Softer corners for a premium feel
+    borderRadius: 16,
     padding: 16,
     marginBottom: 16,
     backgroundColor: '#FFF',
@@ -210,20 +214,20 @@ const styles = StyleSheet.create({
   fareBadge: { 
     flexDirection: 'row', 
     alignItems: 'center', 
-    backgroundColor: '#ECFDF5', // Light green background
+    backgroundColor: '#ECFDF5',
     paddingVertical: 6, 
     paddingHorizontal: 10, 
     borderRadius: 8, 
     gap: 4 
   },
   fareText: { 
-    color: '#059669', // Deep green text
-    fontWeight: 'bold', 
+    color: '#059669',
+    fontWeight: '700', 
     fontSize: 18 
   },
   locationContainer: { 
     marginBottom: 20,
-    paddingLeft: 4 // Alignment tweak
+    paddingLeft: 4
   },
   locationRow: { 
     flexDirection: 'row', 
@@ -253,7 +257,7 @@ const styles = StyleSheet.create({
     paddingTop: 16
   },
   acceptButton: {
-    flex: 1.5, // Accept button is wider/more prominent
+    flex: 1.5,
     backgroundColor: '#FF8C00',
     paddingVertical: 14,
     borderRadius: 10,
@@ -261,7 +265,7 @@ const styles = StyleSheet.create({
   },
   acceptText: { 
     color: '#FFF', 
-    fontWeight: 'bold', 
+    fontWeight: '700', 
     fontSize: 16 
   },
   rejectButton: {

@@ -70,7 +70,7 @@ export default function VehicleInfoScreen() {
       <View style={styles.header}>
         {!firstTime && (
           <Pressable onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#111827" />
+            <ArrowLeft size={24} color="#6B7280" />
           </Pressable>
         )}
         <Text style={styles.headerTitle}>Vehicle Info</Text>
@@ -107,18 +107,45 @@ export default function VehicleInfoScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#FFFFFF' },
-  header: { flexDirection: 'row', alignItems: 'center', padding: 20, borderBottomWidth: 1, borderColor: '#F3F4F6' },
+  safeArea: { flex: 1, backgroundColor: '#FAFAFA' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    borderBottomWidth: 1,
+    borderColor: '#F0F0F0',
+  },
   backButton: { paddingRight: 15 },
-  headerTitle: { fontSize: 18, fontWeight: 'bold', color: '#111827' },
+  headerTitle: { fontSize: 20, fontWeight: '700', color: '#111827', letterSpacing: -0.3 },
   container: { flex: 1, padding: 24, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#111827', marginBottom: 8, textAlign: 'center' },
+  title: { fontSize: 22, fontWeight: '700', color: '#111827', marginBottom: 8, textAlign: 'center', letterSpacing: -0.4 },
   subtitle: { fontSize: 14, color: '#6B7280', textAlign: 'center', marginBottom: 30, lineHeight: 20 },
   input: {
-    width: '100%', borderWidth: 1, borderColor: '#D1D5DB', borderRadius: 10,
-    padding: 16, fontSize: 18, textAlign: 'center', letterSpacing: 2,
-    marginBottom: 24, backgroundColor: '#FAFAFA'
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    fontSize: 18,
+    textAlign: 'center',
+    letterSpacing: 2,
+    marginBottom: 24,
+    backgroundColor: '#F9FAFB',
+    color: '#111827',
   },
-  saveButton: { width: '100%', backgroundColor: '#FF8C00', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
-  saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold' },
+  saveButton: {
+    width: '100%',
+    backgroundColor: '#FF8C00',
+    paddingVertical: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    shadowColor: '#FF8C00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 2,
+  },
+  saveButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

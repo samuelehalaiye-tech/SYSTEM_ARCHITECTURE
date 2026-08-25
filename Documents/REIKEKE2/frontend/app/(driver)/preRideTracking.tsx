@@ -1,15 +1,17 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
   ActivityIndicator,
   Text,
   Pressable,
+  Alert,
+  Linking,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CheckCircle, Navigation, Play } from 'lucide-react-native';
+import { CheckCircle, Navigation, Phone, Play } from 'lucide-react-native';
 
 import DriverMarker from '@/components/DriverMarker';
 import { YOLA_REGION } from '@/components/MapComponent';
@@ -58,6 +60,23 @@ export default function PreRideTracking() {
   >([]);
   const [passengerCoord, setPassengerCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
+
+  const handleCallRider = () => {
+    const phone = tripData?.rider_phone;
+    if (!phone || phone === 'N/A') {
+      Alert.alert('Unavailable', 'The passenger phone number is not available.');
+      return;
+    }
+
+    Alert.alert(
+      'Call passenger?',
+      'This will share your phone number with the passenger through a normal phone call.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Call', onPress: () => Linking.openURL(`tel:${phone}`) },
+      ],
+    );
+  };
 
   // Tracks whether the driver is currently dragging the map, so our
   // GPS-driven camera follow doesn't fight their own panning/zooming.
@@ -132,8 +151,9 @@ export default function PreRideTracking() {
           longitude: Number(loc.lng),
         };
         setPassengerCoord((current) =>
-          current?.latitude === nextPassengerCoord.latitude &&
-          current?.longitude === nextPassengerCoord.longitude
+          current &&
+          Math.abs(current.latitude - nextPassengerCoord.latitude) < 0.00008 &&
+          Math.abs(current.longitude - nextPassengerCoord.longitude) < 0.00008
             ? current
             : nextPassengerCoord,
         );
@@ -210,8 +230,9 @@ export default function PreRideTracking() {
             longitude: Number(data.passenger_lng),
           };
           setPassengerCoord((current) =>
-            current?.latitude === nextPassengerCoord.latitude &&
-            current?.longitude === nextPassengerCoord.longitude
+            current &&
+            Math.abs(current.latitude - nextPassengerCoord.latitude) < 0.00008 &&
+            Math.abs(current.longitude - nextPassengerCoord.longitude) < 0.00008
               ? current
               : nextPassengerCoord,
           );
@@ -508,6 +529,10 @@ export default function PreRideTracking() {
         </View>
 
         {/* Action button */}
+        <Pressable style={styles.callBtn} onPress={handleCallRider}>
+          <Phone size={20} color="#fff" />
+          <Text style={styles.callBtnText}>Call Passenger</Text>
+        </Pressable>
         <Pressable style={styles.startBtn} onPress={handleRideAction}>
           {isRideStarted ? (
             <CheckCircle size={20} color="#fff" />
@@ -529,7 +554,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FAFAFA',
   },
 
   // ── Panel ──
@@ -538,23 +563,25 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 36,
     gap: 16,
-    shadowColor: '#000',
+    borderTopWidth: 1,
+    borderColor: '#EFEFEF',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.05,
     shadowRadius: 12,
-    elevation: 20,
+    elevation: 2,
   },
   panelHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#374151',
+    backgroundColor: '#E5E7EB',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 4,
@@ -567,11 +594,11 @@ const styles = StyleSheet.create({
     gap: 24,
   },
   statBox: { alignItems: 'center' },
-  statValue: { fontSize: 26, fontWeight: '700', color: '#fff' },
-  statLabel: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-  statDivider: { width: 1, height: 32, backgroundColor: '#374151' },
+  statValue: { fontSize: 24, fontWeight: '700', color: '#111827', letterSpacing: -0.3 },
+  statLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statDivider: { width: 1, height: 32, backgroundColor: '#E5E7EB' },
   routeError: {
-    color: '#FCD34D',
+    color: '#DC2626',
     fontSize: 13,
     lineHeight: 18,
     textAlign: 'center',
@@ -581,12 +608,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#FAFAFA',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
   },
-  pickupText: { flex: 1, color: '#D1D5DB', fontSize: 14 },
+  pickupText: { flex: 1, color: '#111827', fontSize: 14 },
 
   riderRow: {
     flexDirection: 'row',
@@ -597,21 +626,37 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#374151',
+    backgroundColor: '#FFF3E0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: '#fff', fontSize: 18, fontWeight: '700' },
-  riderName: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  avatarText: { color: '#FF8C00', fontSize: 18, fontWeight: '700' },
+  riderName: { color: '#111827', fontSize: 16, fontWeight: '700' },
 
+  callBtn: {
+    backgroundColor: '#2563EB',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 10,
+    marginBottom: 12,
+  },
+  callBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   startBtn: {
-    backgroundColor: '#22C55E',
+    backgroundColor: '#FF8C00',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 16,
-    borderRadius: 14,
+    borderRadius: 12,
     gap: 10,
+    shadowColor: '#FF8C00',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+    elevation: 2,
   },
-  startBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  startBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
 });

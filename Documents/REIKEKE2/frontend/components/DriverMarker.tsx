@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import { Marker } from 'react-native-maps';
 
@@ -8,13 +8,21 @@ interface DriverMarkerProps {
 }
 
 /** Uber-style driver marker. */
-export default function DriverMarker({ coordinate, heading = 0 }: DriverMarkerProps) {
+function DriverMarkerComponent({ coordinate, heading = 0 }: DriverMarkerProps) {
+  const [tracksViewChanges, setTracksViewChanges] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setTracksViewChanges(false), 400);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <Marker
       coordinate={coordinate}
       anchor={{ x: 0.5, y: 0.5 }}
       flat={true}
       rotation={heading}
+      tracksViewChanges={tracksViewChanges}
     >
       <View style={styles.markerContainer}>
         <View style={styles.outerCircle}>
@@ -29,6 +37,8 @@ export default function DriverMarker({ coordinate, heading = 0 }: DriverMarkerPr
     </Marker>
   );
 }
+
+export default React.memo(DriverMarkerComponent);
 
 const styles = StyleSheet.create({
   markerContainer: {

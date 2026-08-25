@@ -59,9 +59,17 @@ export default function SearchingForDriver() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: 'white', justifyContent: 'center', alignItems: 'center', padding: 30 },
-  title: { fontSize: 22, fontWeight: 'bold', marginTop: 20, color: '#111827' },
-  subtitle: { textAlign: 'center', color: '#6B7280', marginTop: 10, fontSize: 16 },
-  cancelBtn: { marginTop: 50, padding: 15 },
-  cancelText: { color: '#EF4444', fontWeight: 'bold', fontSize: 16 }
+  container: { flex: 1, backgroundColor: '#FAFAFA', justifyContent: 'center', alignItems: 'center', padding: 30 },
+  title: { fontSize: 22, fontWeight: '700', marginTop: 20, color: '#111827', letterSpacing: -0.4 },
+  subtitle: { textAlign: 'center', color: '#6B7280', marginTop: 10, fontSize: 15 },
+  cancelBtn: {
+    marginTop: 50,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: '#FCA5A5',
+  },
+  cancelText: { color: '#DC2626', fontWeight: '600', fontSize: 16 }
 });

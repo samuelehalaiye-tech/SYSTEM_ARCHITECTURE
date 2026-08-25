@@ -85,16 +85,16 @@ export default function RiderLoginPage() {
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Password</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={styles.passwordContainer}>
                 <TextInput
-                  style={[styles.input, { flex: 1 }]}
+                  style={styles.passwordInput}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry={!showPassword}
                   placeholder="••••••••"
                 />
-                <Pressable onPress={() => setShowPassword(v => !v)} style={{ marginLeft: 8, padding: 4 }}>
-                  {showPassword ? <EyeOff size={20} color="#FF8C00" /> : <Eye size={20} color="#FF8C00" />}
+                <Pressable onPress={() => setShowPassword(v => !v)} style={{ padding: 4 }}>
+                  {showPassword ? <EyeOff size={20} color="#9CA3AF" /> : <Eye size={20} color="#9CA3AF" />}
                 </Pressable>
               </View>
             </View>

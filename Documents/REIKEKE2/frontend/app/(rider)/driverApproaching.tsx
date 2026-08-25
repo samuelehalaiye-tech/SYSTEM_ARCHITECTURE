@@ -6,11 +6,12 @@ import {
   Alert,
   Text,
   Pressable,
+  Linking,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Shield, XCircle, LocateFixed } from 'lucide-react-native';
+import { Phone, Shield, XCircle, LocateFixed } from 'lucide-react-native';
 
 import DriverMarker from '@/components/DriverMarker';
 import { YOLA_REGION } from '@/components/MapComponent';
@@ -213,6 +214,23 @@ export default function DriverApproaching() {
   const handleSOS = () =>
     Alert.alert('SOS', 'Emergency alert sent to security!');
 
+  const handleCallDriver = () => {
+    const phone = tripData?.driver?.phone;
+    if (!phone || phone === 'N/A') {
+      Alert.alert('Unavailable', 'The driver phone number is not available.');
+      return;
+    }
+
+    Alert.alert(
+      'Call driver?',
+      'This will share your phone number with the driver through a normal phone call.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Call', onPress: () => Linking.openURL(`tel:${phone}`) },
+      ],
+    );
+  };
+
   // ── Loading ─────────────────────────────────────────────────────────────
   if (!token) {
     return (
@@ -378,6 +396,13 @@ export default function DriverApproaching() {
         {/* Actions */}
         <View style={styles.actionsRow}>
           <Pressable
+            style={[styles.actionBtn, styles.callBtn]}
+            onPress={handleCallDriver}
+          >
+            <Phone size={20} color="#fff" />
+            <Text style={styles.actionBtnText}>Call</Text>
+          </Pressable>
+          <Pressable
             style={[styles.actionBtn, styles.sosBtn]}
             onPress={handleSOS}
           >
@@ -394,11 +419,11 @@ export default function DriverApproaching() {
             disabled={cancelling}
           >
             {cancelling ? (
-              <ActivityIndicator size="small" color="#EF4444" />
+              <ActivityIndicator size="small" color="#DC2626" />
             ) : (
               <>
-                <XCircle size={20} color="#EF4444" />
-                <Text style={[styles.actionBtnText, { color: '#EF4444' }]}>
+                <XCircle size={20} color="#DC2626" />
+                <Text style={[styles.actionBtnText, { color: '#DC2626' }]}>
                   Cancel
                 </Text>
               </>
@@ -416,7 +441,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#FAFAFA',
   },
 
   recenterBtn: {
@@ -426,26 +451,30 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#fff',
+    backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 8,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
 
   connBanner: {
     position: 'absolute',
     top: 50,
     alignSelf: 'center',
-    backgroundColor: 'rgba(17,24,39,0.9)',
+    backgroundColor: '#FFFFFF',
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  connBannerText: { color: '#fff', fontSize: 12, fontWeight: '600' },
+  connBannerText: { color: '#6B7280', fontSize: 12, fontWeight: '600' },
 
   // Panel
   panel: {
@@ -453,23 +482,25 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: '#111827',
+    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
     paddingTop: 12,
     paddingBottom: 36,
     gap: 16,
-    shadowColor: '#000',
+    borderTopWidth: 1,
+    borderColor: '#EFEFEF',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.05,
     shadowRadius: 12,
-    elevation: 20,
+    elevation: 2,
   },
   panelHandle: {
     width: 40,
     height: 4,
-    backgroundColor: '#374151',
+    backgroundColor: '#E5E7EB',
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 4,
@@ -482,31 +513,33 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   statBox: { alignItems: 'center' },
-  statValue: { fontSize: 24, fontWeight: '700', color: '#fff' },
-  statLabel: { fontSize: 12, color: '#9CA3AF', marginTop: 2 },
-  statDivider: { width: 1, height: 32, backgroundColor: '#374151' },
+  statValue: { fontSize: 24, fontWeight: '700', color: '#111827', letterSpacing: -0.3 },
+  statLabel: { fontSize: 11, color: '#9CA3AF', marginTop: 2, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5 },
+  statDivider: { width: 1, height: 32, backgroundColor: '#E5E7EB' },
 
   driverRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: '#1F2937',
+    backgroundColor: '#FAFAFA',
     padding: 14,
     borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#EFEFEF',
   },
   avatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: '#374151',
+    backgroundColor: '#FFF3E0',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: { color: '#fff', fontSize: 20, fontWeight: '700' },
+  avatarText: { color: '#FF8C00', fontSize: 20, fontWeight: '700' },
   driverName: {
-    color: '#fff',
+    color: '#111827',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '700',
     marginBottom: 4,
   },
   plateBadge: {
@@ -517,7 +550,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   plateText: {
-    color: '#111827',
+    color: '#FFFFFF',
     fontWeight: '700',
     fontSize: 13,
     letterSpacing: 1,
@@ -530,14 +563,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
-    borderRadius: 14,
+    borderRadius: 12,
     gap: 8,
   },
-  sosBtn: { backgroundColor: '#EF4444' },
+  callBtn: { backgroundColor: '#2563EB' },
+  sosBtn: { backgroundColor: '#DC2626' },
   cancelBtn: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#FFFFFF',
     borderWidth: 1.5,
-    borderColor: '#EF4444',
+    borderColor: '#FCA5A5',
   },
   btnDisabled: { opacity: 0.5 },
   actionBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
