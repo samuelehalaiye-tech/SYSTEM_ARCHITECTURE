@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 import { authStyles as styles } from '../../src/styles';
 import { useRouter } from 'expo-router'; 
 import { registerUser } from '@/services/endpoints/auth';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 export default function RiderSignupPage() {
   const router = useRouter();
@@ -13,6 +14,7 @@ export default function RiderSignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { showAlert } = useCustomAlert();
   const [error, setError] = useState('');
 
   const handleSignup = async () => {
@@ -48,14 +50,15 @@ export default function RiderSignupPage() {
       if (token) {
         await AsyncStorage.setItem('userToken', token);
         await AsyncStorage.setItem('userRole', 'rider');
-        Alert.alert('Success', 'Welcome to Yola Keke!');
-        router.replace('/riderHome'); // Send to RIDER home, not driver
+        showAlert('Success', 'Welcome to Yola Keke!', [
+          { text: "OK", onPress: () => router.replace('/riderHome') }
+        ]);
       } else {
-        setError(result.message || 'Registration failed. Try a different number.');
+        showAlert('Error', result.message || 'Registration failed. Try a different number.');
       }
     } catch (err) {
       // If it "just loads" and then hits here, it's a network/timeout issue
-      setError('Cannot reach server. Check your connection.');
+      showAlert('Error', 'Cannot reach server. Check your connection.');
       console.error(err);
     } finally {
       setLoading(false);

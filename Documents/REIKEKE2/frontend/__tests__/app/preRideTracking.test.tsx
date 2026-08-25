@@ -272,7 +272,7 @@ describe('PreRideTracking route feedback', () => {
     expect(updateDriverLocation).toHaveBeenCalledTimes(1);
   });
 
-  it('aligns once to heading and ignores unchanged GPS heading', async () => {
+  it('keeps the map camera stable during GPS heading updates', async () => {
     (getRouteToPickup as jest.Mock).mockResolvedValue({
       polyline: '_p~iF~ps|U',
       distance_text: '2.4 km',
@@ -298,11 +298,11 @@ describe('PreRideTracking route feedback', () => {
     await act(async () => {
       onLocationUpdate(firstLocation);
     });
-    expect(mapMock.__mapMethods.animateCamera).toHaveBeenCalledTimes(1);
+    expect(mapMock.__mapMethods.animateCamera).toHaveBeenCalledTimes(0);
 
     await act(async () => {
       onLocationUpdate({ ...firstLocation, lat: 9.204 });
     });
-    expect(mapMock.__mapMethods.animateCamera).toHaveBeenCalledTimes(1);
+    expect(mapMock.__mapMethods.animateCamera).toHaveBeenCalledTimes(0);
   });
 });

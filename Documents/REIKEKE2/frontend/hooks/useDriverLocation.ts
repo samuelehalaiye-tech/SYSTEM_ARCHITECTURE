@@ -15,11 +15,16 @@ interface LocationData {
   timestamp: string;
 }
 
-const MAP_MOVE_METERS = 10;
-const MAP_HEADING_DEGREES = 15;
+const MAP_MOVE_METERS = 2;
+const MAP_HEADING_DEGREES = 10;
 
 function headingDelta(a: number, b: number) {
   return Math.abs(((b - a + 540) % 360) - 180);
+}
+
+function isMissingLocationTaskError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('TaskNotFoundException') || message.includes('Task not found');
 }
 
 /** Skip tiny GPS jitter so the map is not redrawn on every native location event. */
@@ -105,6 +110,24 @@ export function useDriverLocation(options: {
         console.warn('Background location permission denied. Tracking will only work in foreground.');
       }
 
+      // Seed with last known location immediately so the marker doesn't disappear for seconds
+      try {
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown && !lastMapLocationRef.current) {
+          const initData: LocationData = {
+            lat: lastKnown.coords.latitude,
+            lng: lastKnown.coords.longitude,
+            heading: lastKnown.coords.heading || 0,
+            speed: lastKnown.coords.speed || 0,
+            accuracy: lastKnown.coords.accuracy || 0,
+            timestamp: new Date(lastKnown.timestamp).toISOString(),
+          };
+          publishLocation(initData);
+        }
+      } catch (e) {
+        // Ignore failure to get initial location
+      }
+
       locationSubRef.current = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.Balanced,
@@ -161,7 +184,9 @@ export function useDriverLocation(options: {
         await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       }
     } catch (e) {
-      console.error('Error stopping background location:', e);
+      if (!isMissingLocationTaskError(e)) {
+        console.error('Error stopping background location:', e);
+      }
     }
 
     setIsTracking(false);

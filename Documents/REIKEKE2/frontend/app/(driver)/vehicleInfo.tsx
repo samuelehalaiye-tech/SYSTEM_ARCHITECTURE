@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, TextInput, Pressable, StyleSheet,
-  SafeAreaView, Alert, ActivityIndicator
+  SafeAreaView, ActivityIndicator
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Car, ArrowLeft } from 'lucide-react-native';
 import { getDriverProfile, updateVehicleInfo } from '../../services/endpoints/driver';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 export default function VehicleInfoScreen() {
   const router = useRouter();
   const { firstTime } = useLocalSearchParams(); // 'true' when forced on first login
+  const { showAlert } = useCustomAlert();
 
   const [plate, setPlate] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,25 +35,25 @@ export default function VehicleInfoScreen() {
 
   const handleSave = async () => {
     if (plate.trim().length < 3) {
-      Alert.alert("Invalid Plate", "Please enter a valid plate number.");
+      showAlert("Invalid Plate", "Please enter a valid plate number.");
       return;
     }
     setLoading(true);
     try {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) {
-        Alert.alert("Error", "Session expired. Please login again.");
+        showAlert("Error", "Session expired. Please login again.");
         return;
       }
       const result = await updateVehicleInfo(plate.trim(), token);
       if (result?.plate_number) {
-        Alert.alert("Saved", "Your plate number has been updated.");
+        showAlert("Saved", "Your plate number has been updated.");
         router.replace('/driverHome');
       } else {
-        Alert.alert("Error", result?.plate_number?.[0] || "Could not save plate number.");
+        showAlert("Error", result?.plate_number?.[0] || "Could not save plate number.");
       }
     } catch (e) {
-      Alert.alert("Network Error", "Check your connection and try again.");
+      showAlert("Network Error", "Check your connection and try again.");
     } finally {
       setLoading(false);
     }

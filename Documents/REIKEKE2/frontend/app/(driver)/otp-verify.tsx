@@ -6,17 +6,18 @@ import {
   Pressable, 
   StyleSheet, 
   SafeAreaView, 
-  Alert,
   ActivityIndicator
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { verifyTripOTP } from '../../services/endpoints/driver';
 import { ShieldCheck, ArrowLeft } from 'lucide-react-native';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 export default function OTPVerifyScreen() {
   const { tripId, action } = useLocalSearchParams();
   const router = useRouter();
+  const { showAlert } = useCustomAlert();
   const actionValue = Array.isArray(action) ? action[0] : action;
   
   const [otp, setOtp] = useState('');
@@ -31,7 +32,7 @@ export default function OTPVerifyScreen() {
 
   const handleVerify = async () => {
     if (otp.length !== 6) {
-      Alert.alert("Invalid Entry", "Please enter the complete 6-digit PIN.");
+      showAlert("Invalid Entry", "Please enter the complete 6-digit PIN.");
       return;
     }
 
@@ -43,17 +44,19 @@ export default function OTPVerifyScreen() {
       const response = await verifyTripOTP(tripId as string, otp, actionValue as string, token);
       
       // Verification Successful!
-      Alert.alert("Success", response.message);
-      
-      router.replace(
-        isStarting
-          ? { pathname: '/(driver)/preRideTracking' as any, params: { tripId: String(tripId) } }
-          : '/driverHome',
-      );
+      showAlert("Success", response.message, [
+        { text: "OK", onPress: () => {
+          router.replace(
+            isStarting
+              ? { pathname: '/(driver)/preRideTracking' as any, params: { tripId: String(tripId) } }
+              : '/driverHome',
+          );
+        }}
+      ]);
 
     } catch (error: any) {
     
-      Alert.alert("Verification Failed", error.message || "Incorrect PIN.");
+      showAlert("Verification Failed", error.message || "Incorrect PIN.");
       setOtp(''); // Clear the wrong PIN
     } finally {
       setIsLoading(false);

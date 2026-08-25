@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 import { authStyles as styles } from '../../src/styles';
 import { useRouter } from 'expo-router'; 
 import { loginUser } from '@/services/endpoints/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 export default function RiderLoginPage() {
   const router = useRouter();
@@ -12,6 +13,7 @@ export default function RiderLoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const { showAlert } = useCustomAlert();
   const [error, setError] = useState('');
 
   const handleLogin = async () => {
@@ -25,27 +27,30 @@ export default function RiderLoginPage() {
     });
 
     if (result.access) {
-  // 1. Only allow login if they ARE a rider
-  if (result.is_rider) {
-    await AsyncStorage.setItem('userToken', result.access);
-    await AsyncStorage.setItem('userRole', 'rider');
-    
-    console.log("Rider Login Success.");
-    router.replace('/riderHome');
-  } 
-  // 2. If they are a driver trying to use the Rider login
-  else if (result.is_driver) {
-    Alert.alert(
-      "Wrong Login", 
-      "This is the Passenger login. Please use the Driver login page to start working."
-    );
-    // We do NOT save the token here, we make them go to the right page
-  } else {
-    Alert.alert("Account Error", "No role assigned to this account.");
-  }
-}
+      // 1. Only allow login if they ARE a rider
+      if (result.is_rider) {
+        await AsyncStorage.setItem('userToken', result.access);
+        await AsyncStorage.setItem('userRole', 'rider');
+        
+        console.log("Rider Login Success.");
+        router.replace('/riderHome');
+      } 
+      // 2. If they are a driver trying to use the Rider login
+      else if (result.is_driver) {
+        showAlert(
+          "Wrong Login", 
+          "This is the Passenger login. Please use the Driver login page to start working."
+        );
+        // We do NOT save the token here, we make them go to the right page
+      } else {
+        showAlert("Account Error", "No role assigned to this account.");
+      }
+    }
   } catch (err) {
-    Alert.alert("Network Error", "Could not reach the Yola server.");
+    showAlert(
+      "Login Error",
+      err instanceof Error ? err.message : "Could not reach the Yola server."
+    );
   } finally {
     setLoading(false);
   }

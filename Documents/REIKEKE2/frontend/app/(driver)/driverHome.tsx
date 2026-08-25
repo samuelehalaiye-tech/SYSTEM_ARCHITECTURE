@@ -7,7 +7,6 @@ import {
   Switch, 
   SafeAreaView, 
   StatusBar,
-  Alert ,
   ActivityIndicator
 } from 'react-native';
 import { Phone, List, Play, CheckCircle, XCircle } from 'lucide-react-native';
@@ -15,11 +14,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router'; 
 import { getDriverProfile } from '../../services/endpoints/driver';
 import { getMyProfile } from '../../services/endpoints/auth';
-
-
-// Make sure you import the new getCurrentTrip function!
 import { updateDriverStatus, getCurrentTrip  } from '../../services/endpoints/driver'; 
 import { cancelTrip } from '@/services/endpoints/rider';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 interface DriverHomeProps {
   phone: string;
@@ -28,11 +25,10 @@ interface DriverHomeProps {
 export default function DriverHome({ phone }: DriverHomeProps) {
   const [isOnline, setIsOnline] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
-  const [activeTrip, setActiveTrip] = useState<any>(null); // The new state for our trip
+  const [activeTrip, setActiveTrip] = useState<any>(null); 
   const [phoneNumber, setPhoneNumber] = useState(phone || '');
   const router = useRouter(); 
-
-
+  const { showAlert } = useCustomAlert();
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -67,11 +63,10 @@ const checkVehicleInfo = async () => {
   }
 };
   
-  // Polling Logic: Check for active trip when component mounts, and every 10 seconds
   useEffect(() => {
     checkActiveTrip();
     const interval = setInterval(checkActiveTrip, 10000);
-    return () => clearInterval(interval); // Cleanup on unmount
+    return () => clearInterval(interval); 
   }, []);
 
   const checkActiveTrip = async () => {
@@ -86,7 +81,6 @@ const checkVehicleInfo = async () => {
           return;
         }
         setActiveTrip(response);
-        // Force driver online if they have an active trip
         if (!isOnline) setIsOnline(true);
       } else {
         setActiveTrip(null);
@@ -103,7 +97,7 @@ const checkVehicleInfo = async () => {
       console.log("User logged out, token cleared.");
       router.replace('/(auth)'); 
     } catch (e) {
-      Alert.alert("Error", "Failed to logout. Try again.");
+      showAlert("Error", "Failed to logout. Try again.");
     }
   };
 
@@ -112,7 +106,7 @@ const checkVehicleInfo = async () => {
   const handleCancelTrip = async () => {
   if (!activeTrip) return;
 
-  Alert.alert(
+  showAlert(
     "Cancel Trip",
     "Are you sure you want to cancel this trip?",
     [
@@ -125,7 +119,7 @@ const checkVehicleInfo = async () => {
             setCancelling(true);
             const token = await AsyncStorage.getItem('userToken');
             if (!token) {
-              Alert.alert("Error", "Please login again");
+              showAlert("Error", "Please login again");
               return;
             }
 
@@ -133,14 +127,13 @@ const checkVehicleInfo = async () => {
 
             if (result.status === "success") {
               setActiveTrip(null);
-              Alert.alert("Success", "Trip cancelled successfully");
-              // Optionally refresh online status
+              showAlert("Success", "Trip cancelled successfully");
               await checkActiveTrip();
             } else {
-              Alert.alert("Error", result.error || "Failed to cancel trip");
+              showAlert("Error", result.error || "Failed to cancel trip");
             }
           } catch (error) {
-            Alert.alert("Error", "Network error. Please try again.");
+            showAlert("Error", "Network error. Please try again.");
           } finally {
             setCancelling(false);
           }
@@ -152,9 +145,8 @@ const checkVehicleInfo = async () => {
 
 
   const toggleStatus = async (value: boolean) => {
-    // Prevent going offline if there is an active ride
     if (activeTrip && !value) {
-      Alert.alert("Action Denied", "You cannot go offline while on an active trip.");
+      showAlert("Action Denied", "You cannot go offline while on an active trip.");
       return;
     }
 
@@ -164,7 +156,7 @@ const checkVehicleInfo = async () => {
     try {
       const token = await AsyncStorage.getItem('userToken');
       if (!token) {
-        Alert.alert('Error', 'Session expired. Please login again.');
+        showAlert('Error', 'Session expired. Please login again.');
         setIsOnline(previousState);
         return;
       }
@@ -175,7 +167,7 @@ const checkVehicleInfo = async () => {
       }
     } catch (error) {
       setIsOnline(previousState);
-      Alert.alert('Connection Error', 'Failed to update status. Check your internet.');
+      showAlert('Connection Error', 'Failed to update status. Check your internet.');
     }
     setLoadingStatus(false);
   };

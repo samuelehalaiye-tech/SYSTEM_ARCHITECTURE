@@ -28,10 +28,19 @@ const DeviceEventEmitter = {
   emit: jest.fn(),
 };
 const Animated = {
-  Value: class { constructor(v) { this._value = v; } },
+  Value: class {
+    constructor(v) { this._value = v; }
+    setValue(v) { this._value = v; }
+    stopAnimation() {}
+  },
   timing: jest.fn(() => ({ start: jest.fn() })),
   spring: jest.fn(() => ({ start: jest.fn() })),
   View,
+};
+const PanResponder = {
+  create: jest.fn((config) => ({
+    panHandlers: config,
+  })),
 };
 
 module.exports = {
@@ -50,4 +59,5 @@ module.exports = {
   StyleSheet,
   DeviceEventEmitter,
   Animated,
+  PanResponder,
 };

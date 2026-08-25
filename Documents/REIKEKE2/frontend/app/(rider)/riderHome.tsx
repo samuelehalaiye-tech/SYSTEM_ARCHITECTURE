@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  View, Text, Pressable, StyleSheet, StatusBar, Alert, KeyboardAvoidingView, Platform,ActivityIndicator
+  View, Text, Pressable, StyleSheet, StatusBar, KeyboardAvoidingView, Platform, ActivityIndicator
 } from 'react-native';
-// Use the modern Safe Area context
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 import { getTripStatus, cancelTrip } from '@/services/endpoints/rider'; 
 import { BASE_URL } from '@/services/config';
@@ -18,6 +18,7 @@ import {
 export default function PassengerHome() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { showAlert } = useCustomAlert();
 
   const { active_trip_id } = useLocalSearchParams();
 
@@ -88,7 +89,7 @@ useEffect(() => {
   const handleCancelRide = async () => {
   if (!activeTrip) return;
 
-  Alert.alert(
+  showAlert(
     "Cancel Ride",
     "Are you sure you want to cancel this ride?",
     [
@@ -101,7 +102,7 @@ useEffect(() => {
             setCancelling(true);
             const token = await AsyncStorage.getItem('userToken');
             if (!token) {
-              Alert.alert("Error", "Please login again");
+              showAlert("Error", "Please login again");
               return;
             }
 
@@ -110,12 +111,12 @@ useEffect(() => {
             if (result.status === "success") {
               setActiveTrip(null);
               router.setParams({ active_trip_id: '' });
-              Alert.alert("Success", "Ride cancelled successfully");
+              showAlert("Success", "Ride cancelled successfully");
             } else {
-              Alert.alert("Error", result.error || "Failed to cancel ride");
+              showAlert("Error", result.error || "Failed to cancel ride");
             }
           } catch (error) {
-            Alert.alert("Error", "Network error. Please try again.");
+            showAlert("Error", "Network error. Please try again.");
           } finally {
             setCancelling(false);
           }
@@ -132,7 +133,7 @@ useEffect(() => {
   dropoffCoords.lat === null ||
   dropoffCoords.lng === null
 ) {
-    Alert.alert("Error", "Please select valid locations.");
+    showAlert("Error", "Please select valid locations.");
     return;
   }
 
@@ -170,10 +171,10 @@ useEffect(() => {
         }
       });
     } else {
-      Alert.alert("Error", result.error || "Could not calculate fare.");
+      showAlert("Error", result.error || "Could not calculate fare.");
     }
   } catch (error) {
-    Alert.alert("Connection Error", "Check your server.");
+    showAlert("Connection Error", "Check your server.");
   }
 };
   // Polling Logic
@@ -234,7 +235,7 @@ useEffect(() => {
       <View style={styles.statusBadge}>
         <Text style={styles.statusBadgeText}>{activeTrip.status}</Text>
       </View>
-      <Pressable onPress={() => Alert.alert("SOS", "Alerting Security...")} style={styles.sosButton}>
+      <Pressable onPress={() => showAlert("SOS", "Alerting Security...")} style={styles.sosButton}>
         <Text style={styles.sosText}>SOS</Text>
       </Pressable>
     </View>

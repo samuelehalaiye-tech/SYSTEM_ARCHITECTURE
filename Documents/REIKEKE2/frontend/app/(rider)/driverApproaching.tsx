@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
+  Animated,
+  PanResponder,
   View,
   StyleSheet,
   ActivityIndicator,
-  Alert,
   Text,
   Pressable,
   Linking,
@@ -18,8 +19,10 @@ import { YOLA_REGION } from '@/components/MapComponent';
 import { useDriverTracking } from '@/hooks/useDriverTracking';
 import { usePassengerLocation } from '@/hooks/usePassengerLocation';
 import { cancelTrip, getTripStatus } from '@/services/endpoints/rider';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 const TRIP_STATUS_REFRESH_MS = 5000;
+const PANEL_COLLAPSED_OFFSET = 260;
 
 export default function DriverApproaching() {
   const params = useLocalSearchParams();
@@ -33,11 +36,60 @@ export default function DriverApproaching() {
   const mapRef = useRef<MapView>(null);
   const hasFitOnceRef = useRef(false);
   const completionHandledRef = useRef(false);
+  const panelOffset = useRef(new Animated.Value(0)).current;
+  const panelOffsetRef = useRef(0);
+  const panelPanStartRef = useRef(0);
+
+  const panelPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderGrant: () => {
+        panelPanStartRef.current = panelOffsetRef.current;
+        panelOffset.stopAnimation();
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextOffset = Math.max(
+          0,
+          Math.min(
+            PANEL_COLLAPSED_OFFSET,
+            panelPanStartRef.current + gestureState.dy,
+          ),
+        );
+        panelOffsetRef.current = nextOffset;
+        panelOffset.setValue(nextOffset);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const shouldCollapse =
+          gestureState.vy > 0.5 ||
+          (gestureState.vy >= -0.5 && panelOffsetRef.current > PANEL_COLLAPSED_OFFSET / 2);
+        const nextOffset = shouldCollapse ? PANEL_COLLAPSED_OFFSET : 0;
+        panelOffsetRef.current = nextOffset;
+        Animated.spring(panelOffset, {
+          toValue: nextOffset,
+          useNativeDriver: true,
+          tension: 75,
+          friction: 12,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        panelOffsetRef.current = 0;
+        Animated.spring(panelOffset, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 75,
+          friction: 12,
+        }).start();
+      },
+    }),
+  ).current;
 
   const [token, setToken] = useState<string | null>(null);
   const [tripData, setTripData] = useState<any>(null);
   const [cancelling, setCancelling] = useState(false);
   const [mapReady, setMapReady] = useState(false);
+  const { showAlert } = useCustomAlert();
 
   // ── Load token ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -63,7 +115,7 @@ export default function DriverApproaching() {
 
         if (trip.status === 'COMPLETED' && !completionHandledRef.current) {
           completionHandledRef.current = true;
-          Alert.alert('Ride completed', 'You have arrived at your destination.', [
+          showAlert('Ride completed', 'You have arrived at your destination.', [
             {
               text: 'Back to Home',
               onPress: () => routerRef.current.replace('/(rider)/riderHome'),
@@ -186,7 +238,7 @@ export default function DriverApproaching() {
 
   // ── Cancel ──────────────────────────────────────────────────────────────
   const handleCancel = () => {
-    Alert.alert('Cancel Ride', 'Are you sure you want to cancel?', [
+    showAlert('Cancel Ride', 'Are you sure you want to cancel?', [
       { text: 'No', style: 'cancel' },
       {
         text: 'Yes, Cancel',
@@ -199,10 +251,10 @@ export default function DriverApproaching() {
             if (result.status === 'success') {
               router.replace('/(rider)/riderHome');
             } else {
-              Alert.alert('Error', result.error ?? 'Failed to cancel');
+              showAlert('Error', result.error ?? 'Failed to cancel');
             }
           } catch {
-            Alert.alert('Error', 'Network error. Try again.');
+            showAlert('Error', 'Network error. Try again.');
           } finally {
             setCancelling(false);
           }
@@ -212,16 +264,16 @@ export default function DriverApproaching() {
   };
 
   const handleSOS = () =>
-    Alert.alert('SOS', 'Emergency alert sent to security!');
+    showAlert('SOS', 'Emergency alert sent to security!');
 
   const handleCallDriver = () => {
     const phone = tripData?.driver?.phone;
     if (!phone || phone === 'N/A') {
-      Alert.alert('Unavailable', 'The driver phone number is not available.');
+      showAlert('Unavailable', 'The driver phone number is not available.');
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Call driver?',
       'This will share your phone number with the driver through a normal phone call.',
       [
@@ -332,8 +384,12 @@ export default function DriverApproaching() {
       )}
 
       {/* ── BOTTOM PANEL ────────────────────────────────────────────────── */}
-      <View style={styles.panel}>
-        <View style={styles.panelHandle} />
+      <Animated.View
+        style={[styles.panel, { transform: [{ translateY: panelOffset }] }]}
+      >
+        <View style={styles.panelHandleTouchTarget} {...panelPanResponder.panHandlers}>
+          <View style={styles.panelHandle} />
+        </View>
 
         {/* ETA + distance */}
         <View style={styles.statsRow}>
@@ -430,7 +486,7 @@ export default function DriverApproaching() {
             )}
           </Pressable>
         </View>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -504,6 +560,11 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 4,
+  },
+  panelHandleTouchTarget: {
+    minHeight: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   statsRow: {

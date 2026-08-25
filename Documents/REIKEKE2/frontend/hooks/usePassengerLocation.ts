@@ -6,6 +6,11 @@ import { DeviceEventEmitter } from 'react-native';
 const BACKGROUND_LOCATION_TASK = 'REIKEKE_PASSENGER_LOCATION';
 const LOCATION_UPDATE_EVENT = 'REIKEKE_PASSENGER_LOCATION_UPDATE';
 
+function isMissingLocationTaskError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('TaskNotFoundException') || message.includes('Task not found');
+}
+
 interface LocationData {
   lat: number;
   lng: number;
@@ -142,7 +147,9 @@ export function usePassengerLocation(options: {
         await Location.stopLocationUpdatesAsync(BACKGROUND_LOCATION_TASK);
       }
     } catch (e) {
-      console.error('Error stopping background passenger location:', e);
+      if (!isMissingLocationTaskError(e)) {
+        console.error('Error stopping background passenger location:', e);
+      }
     }
 
     setIsTracking(false);

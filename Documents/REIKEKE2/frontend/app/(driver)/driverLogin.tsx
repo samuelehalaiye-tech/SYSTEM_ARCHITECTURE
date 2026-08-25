@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, Pressable, KeyboardAvoidingView, Platform, ScrollView, SafeAreaView, ActivityIndicator } from 'react-native';
 import { ArrowLeft, Eye, EyeOff } from 'lucide-react-native';
 import { authStyles as styles } from '../../src/styles';
 import { useRouter } from 'expo-router'; 
 import { loginUser } from '@/services/endpoints/auth';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 export default function DriverLoginPage() {
   const router = useRouter();
+  const { showAlert } = useCustomAlert();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -38,7 +40,7 @@ export default function DriverLoginPage() {
           router.replace('/driverHome');
         } else {
           // If a rider tries to log in through the driver portal
-          Alert.alert("Access Denied", "This account is not registered as a Driver.");
+          showAlert("Access Denied", "This account is not registered as a Driver.");
           await AsyncStorage.removeItem('userToken'); // Clean up
         }
       } else {
@@ -46,7 +48,10 @@ export default function DriverLoginPage() {
       }
     } catch (err) {
       console.error(err);
-      Alert.alert("Network Error", "Check your connection to the Yola server.");
+      showAlert(
+        "Login Error",
+        err instanceof Error ? err.message : "Could not reach the Yola server."
+      );
     } finally {
       setLoading(false);
     }

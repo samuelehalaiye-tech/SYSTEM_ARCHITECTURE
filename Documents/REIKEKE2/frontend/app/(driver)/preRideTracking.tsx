@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import {
+  Animated,
+  PanResponder,
   View,
   StyleSheet,
   ActivityIndicator,
@@ -11,7 +13,8 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { CheckCircle, Navigation, Phone, Play } from 'lucide-react-native';
+import { CheckCircle, LocateFixed, Navigation, Phone, Play } from 'lucide-react-native';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 import DriverMarker from '@/components/DriverMarker';
 import { YOLA_REGION } from '@/components/MapComponent';
@@ -28,8 +31,7 @@ import { decodePolyline } from '@/services/polylineUtils';
 
 const ROUTE_REFRESH_MS = 30000;
 const USER_INTERACTION_COOLDOWN_MS = 5000;
-const CAMERA_HEADING_INTERVAL_MS = 1500;
-const CAMERA_HEADING_THRESHOLD = 12;
+const PANEL_COLLAPSED_OFFSET = 260;
 
 const sameTripData = (current: any, next: any) =>
   current?.trip_id === next?.trip_id &&
@@ -40,6 +42,22 @@ const sameTripData = (current: any, next: any) =>
   current?.dropoff_lat === next?.dropoff_lat &&
   current?.dropoff_lng === next?.dropoff_lng &&
   current?.rider_name === next?.rider_name;
+
+const getBearing = (startLat: number, startLng: number, destLat: number, destLng: number) => {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const toDeg = (rad: number) => (rad * 180) / Math.PI;
+  const startLatRad = toRad(startLat);
+  const startLngRad = toRad(startLng);
+  const destLatRad = toRad(destLat);
+  const destLngRad = toRad(destLng);
+
+  const y = Math.sin(destLngRad - startLngRad) * Math.cos(destLatRad);
+  const x =
+    Math.cos(startLatRad) * Math.sin(destLatRad) -
+    Math.sin(startLatRad) * Math.cos(destLatRad) * Math.cos(destLngRad - startLngRad);
+  const brng = toDeg(Math.atan2(y, x));
+  return (brng + 360) % 360;
+};
 
 export default function PreRideTracking() {
   const params = useLocalSearchParams();
@@ -60,15 +78,17 @@ export default function PreRideTracking() {
   >([]);
   const [passengerCoord, setPassengerCoord] = useState<{ latitude: number; longitude: number } | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  
+  const { showAlert } = useCustomAlert();
 
   const handleCallRider = () => {
     const phone = tripData?.rider_phone;
     if (!phone || phone === 'N/A') {
-      Alert.alert('Unavailable', 'The passenger phone number is not available.');
+      showAlert('Unavailable', 'The passenger phone number is not available.');
       return;
     }
 
-    Alert.alert(
+    showAlert(
       'Call passenger?',
       'This will share your phone number with the passenger through a normal phone call.',
       [
@@ -89,8 +109,55 @@ export default function PreRideTracking() {
   const locationFallbackBlockedRef = useRef(false);
   const lastRoutePolylineRef = useRef<string | null>(null);
   const hasRouteOnMapRef = useRef(false);
-  const lastCameraHeadingRef = useRef<number | null>(null);
-  const lastCameraHeadingAtRef = useRef(0);
+  const panelOffset = useRef(new Animated.Value(0)).current;
+  const panelOffsetRef = useRef(0);
+  const panelPanStartRef = useRef(0);
+
+  const panelPanResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: (_, gestureState) =>
+        Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+      onPanResponderGrant: () => {
+        panelPanStartRef.current = panelOffsetRef.current;
+        panelOffset.stopAnimation();
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const nextOffset = Math.max(
+          0,
+          Math.min(
+            PANEL_COLLAPSED_OFFSET,
+            panelPanStartRef.current + gestureState.dy,
+          ),
+        );
+        panelOffsetRef.current = nextOffset;
+        panelOffset.setValue(nextOffset);
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const shouldCollapse =
+          gestureState.vy > 0.5 ||
+          (gestureState.vy >= -0.5 &&
+            panelOffsetRef.current > PANEL_COLLAPSED_OFFSET / 2);
+        const nextOffset = shouldCollapse ? PANEL_COLLAPSED_OFFSET : 0;
+        panelOffsetRef.current = nextOffset;
+        Animated.spring(panelOffset, {
+          toValue: nextOffset,
+          useNativeDriver: true,
+          tension: 75,
+          friction: 12,
+        }).start();
+      },
+      onPanResponderTerminate: () => {
+        panelOffsetRef.current = 0;
+        Animated.spring(panelOffset, {
+          toValue: 0,
+          useNativeDriver: true,
+          tension: 75,
+          friction: 12,
+        }).start();
+      },
+    }),
+  ).current;
 
   // ── Load token + trip data ──────────────────────────────────────────────
   useEffect(() => {
@@ -303,29 +370,6 @@ export default function PreRideTracking() {
           });
       }
 
-      const heading = loc.heading;
-      const now = Date.now();
-      const lastHeading = lastCameraHeadingRef.current;
-      const headingDelta =
-        lastHeading == null
-          ? Number.POSITIVE_INFINITY
-          : Math.abs(((heading - lastHeading + 540) % 360) - 180);
-      if (
-        mapReady &&
-        !userInteractingRef.current &&
-        (loc.speed ?? 0) > 0.5 &&
-        heading > 0 &&
-        headingDelta >= CAMERA_HEADING_THRESHOLD &&
-        now - lastCameraHeadingAtRef.current >= CAMERA_HEADING_INTERVAL_MS
-      ) {
-        lastCameraHeadingRef.current = heading;
-        lastCameraHeadingAtRef.current = now;
-        mapRef.current?.animateCamera(
-          { heading },
-          { duration: 500 },
-        );
-      }
-
     },
   });
 
@@ -350,6 +394,17 @@ export default function PreRideTracking() {
   const pickupLng = tripData?.pickup_lng ? Number(tripData.pickup_lng) : null;
   const hasPickup = pickupLat !== null && pickupLng !== null;
 
+  const initialRegion = useMemo(() => {
+    return hasPickup
+      ? {
+          latitude: pickupLat,
+          longitude: pickupLng,
+          latitudeDelta: 0.03,
+          longitudeDelta: 0.03,
+        }
+      : YOLA_REGION;
+  }, [hasPickup, pickupLat, pickupLng]);
+
   const driverCoord = driverLoc
     ? { latitude: driverLoc.lat, longitude: driverLoc.lng }
     : null;
@@ -362,36 +417,37 @@ export default function PreRideTracking() {
         }
       : null;
 
-  // ── Once map is ready + both live positions exist, fit them on screen ────
-  const hasFitOnceRef = useRef(false);
-  useEffect(() => {
-    if (hasFitOnceRef.current) return;
-    if (isRideStarted) return;
-    if (!mapReady || !driverCoord || !passengerCoord) return;
-    hasFitOnceRef.current = true;
-    setTimeout(() => {
-      mapRef.current?.fitToCoordinates(
-        [driverCoord, passengerCoord],
-        {
-          edgePadding: { top: 80, right: 60, bottom: 280, left: 60 },
-          animated: true,
-        },
-      );
-    }, 600);
-  }, [mapReady, !!driverCoord, passengerCoord, isRideStarted]);
+  // Determine the current destination (pickup or dropoff)
+  const currentDestination = isRideStarted 
+    ? dropoffCoord 
+    : (passengerCoord || (hasPickup ? { latitude: pickupLat!, longitude: pickupLng! } : null));
 
-  useEffect(() => {
-    if (!mapReady || !isRideStarted || !dropoffCoord) return;
-    mapRef.current?.animateCamera(
-      { center: dropoffCoord, zoom: 15 },
-      { duration: 800 },
-    );
-  }, [
-    mapReady,
-    isRideStarted,
-    dropoffCoord?.latitude,
-    dropoffCoord?.longitude,
-  ]);
+  // Calculate the ideal bearing to look at the destination
+  const targetBearing = (driverCoord && currentDestination)
+    ? getBearing(driverCoord.latitude, driverCoord.longitude, currentDestination.latitude, currentDestination.longitude)
+    : (driverLoc?.heading ?? 0);
+
+  const handleRecenter = useCallback(() => {
+    if (driverCoord) {
+      mapRef.current?.animateCamera(
+        { 
+          center: driverCoord, 
+          zoom: 18,
+          pitch: 60,
+          heading: targetBearing
+        },
+        { duration: 800 },
+      );
+      return;
+    }
+
+    if (currentDestination) {
+      mapRef.current?.animateCamera(
+        { center: currentDestination, zoom: 15 },
+        { duration: 800 },
+      );
+    }
+  }, [driverCoord, currentDestination, targetBearing]);
 
   const handleRideAction = () => {
     router.push({
@@ -399,6 +455,37 @@ export default function PreRideTracking() {
       params: { tripId, action: isRideStarted ? 'end' : 'start' },
     });
   };
+
+  // ── Once map is ready + both live positions exist, launch 3D perspective ────
+  const hasFitOnceRef = useRef(false);
+  useEffect(() => {
+    if (hasFitOnceRef.current) return;
+    
+    if (!mapReady || !driverCoord || !currentDestination) return;
+    
+    hasFitOnceRef.current = true;
+    setTimeout(() => {
+      handleRecenter();
+    }, 600);
+  }, [mapReady, !!driverCoord, currentDestination, handleRecenter]);
+
+  useEffect(() => {
+    if (!mapReady || !isRideStarted || !dropoffCoord) return;
+    // Auto-recenter once when the ride starts so it faces the dropoff
+    setTimeout(() => {
+      handleRecenter();
+    }, 400);
+  }, [
+    mapReady,
+    isRideStarted,
+    dropoffCoord?.latitude,
+    dropoffCoord?.longitude,
+    handleRecenter,
+  ]);
+
+  const connectionCoords = useMemo(() => {
+    return driverCoord && passengerCoord ? [driverCoord, passengerCoord] : null;
+  }, [driverCoord?.latitude, driverCoord?.longitude, passengerCoord?.latitude, passengerCoord?.longitude]);
 
   // ── Loading ─────────────────────────────────────────────────────────────
   if (!token || tripData?.status === 'COMPLETED') {
@@ -416,16 +503,7 @@ export default function PreRideTracking() {
         ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFillObject}
-        initialRegion={
-          hasPickup
-            ? {
-                latitude: pickupLat!,
-                longitude: pickupLng!,
-                latitudeDelta: 0.03,
-                longitudeDelta: 0.03,
-              }
-            : YOLA_REGION
-        }
+        initialRegion={initialRegion}
         showsUserLocation={false}
         showsMyLocationButton={false}
         showsCompass={false}
@@ -433,8 +511,8 @@ export default function PreRideTracking() {
         onMapReady={() => setMapReady(true)}
         onPanDrag={handleUserInteraction}
       >
-        {/* Live connection line: driver position to passenger position only. */}
-        {isRideStarted && routeCoords.length > 0 && (
+        {/* Live road connection line */}
+        {routeCoords.length > 0 && (
           <Polyline
             coordinates={routeCoords}
             strokeColor="#0EA5E9"
@@ -443,9 +521,9 @@ export default function PreRideTracking() {
         )}
 
         {/* Live connection line between the two people in the ride. */}
-        {driverCoord && passengerCoord && (
+        {connectionCoords && (
           <Polyline
-            coordinates={[driverCoord, passengerCoord]}
+            coordinates={connectionCoords}
             strokeColor="#FF8C00"
             strokeWidth={5}
           />
@@ -455,7 +533,7 @@ export default function PreRideTracking() {
         {driverCoord && (
           <DriverMarker
             coordinate={driverCoord}
-            heading={driverLoc?.heading ?? 0}
+            heading={targetBearing}
           />
         )}
 
@@ -477,9 +555,24 @@ export default function PreRideTracking() {
         )}
       </MapView>
 
+      <Pressable
+        accessibilityLabel="Center map on ride"
+        style={styles.recenterBtn}
+        onPress={handleRecenter}
+      >
+        <LocateFixed size={20} color="#111827" />
+      </Pressable>
+
       {/* ── BOTTOM PANEL ────────────────────────────────────────────────── */}
-      <View style={styles.panel}>
-        <View style={styles.panelHandle} />
+      <Animated.View
+        style={[styles.panel, { transform: [{ translateY: panelOffset }] }]}
+      >
+        <View
+          style={styles.panelHandleTouchTarget}
+          {...panelPanResponder.panHandlers}
+        >
+          <View style={styles.panelHandle} />
+        </View>
 
         {/* ETA + distance row */}
         <View style={styles.statsRow}>
@@ -543,7 +636,7 @@ export default function PreRideTracking() {
             {isRideStarted ? 'End Ride' : 'Start Ride'}
           </Text>
         </Pressable>
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -555,6 +648,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FAFAFA',
+  },
+
+  recenterBtn: {
+    position: 'absolute',
+    top: 110,
+    right: 16,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
   },
 
   // ── Panel ──
@@ -585,6 +697,11 @@ const styles = StyleSheet.create({
     borderRadius: 2,
     alignSelf: 'center',
     marginBottom: 4,
+  },
+  panelHandleTouchTarget: {
+    minHeight: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 
   statsRow: {

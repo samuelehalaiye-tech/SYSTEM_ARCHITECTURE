@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Pressable, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, SafeAreaView, ActivityIndicator } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { MapPin, ArrowRight, Navigation, Banknote } from 'lucide-react-native';
+import { MapPin, Navigation, Banknote } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { requestRide } from '@/services/endpoints/rider';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 export default function ConfirmRide() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const [loading, setLoading] = useState(false);
+  const { showAlert } = useCustomAlert();
     
   // Extract params (sent from riderHome)
   const { pickup, dropoff, pLat, pLng, dLat, dLng, price, distance } = params;
@@ -43,9 +45,11 @@ if (response && response.trip_id) {
    pathname: '/searching', // REMOVE the /(rider)/ part
    params: { trip_id: response.trip_id }
  });
+} else {
+  showAlert("Request Failed", response?.error || "Could not find drivers.");
 }
     } catch (error) {
-      Alert.alert("Network Error", "Check your connection.");
+      showAlert("Network Error", "Check your connection.");
     } finally {
       setLoading(false);
     }
@@ -76,7 +80,7 @@ if (response && response.trip_id) {
               <Banknote size={20} color="#FF8C00" />
               <Text style={styles.infoLabel}>Estimated Fare</Text>
               {/* NOW IT SHOWS THE REAL PRICE */}
-              <Text style={styles.infoValue}>₦{price || "---"}</Text> 
+              <Text style={styles.infoValue}>₦{price ? Math.ceil(Number(price) / 100) * 100 : "---"}</Text> 
           </View>
           
           <View style={styles.infoBox}>

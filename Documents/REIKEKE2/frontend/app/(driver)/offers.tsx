@@ -1,15 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, FlatList, Pressable, StyleSheet, 
-  SafeAreaView, StatusBar, Alert, ActivityIndicator 
+  SafeAreaView, StatusBar, ActivityIndicator 
 } from 'react-native';
 import { ArrowLeft, MapPin, Navigation, Phone, Banknote } from 'lucide-react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getRideOffers, acceptRide, rejectRide } from '@/services/endpoints/driver';
+import { useCustomAlert } from '@/contexts/AlertContext';
 
 export default function DriverOffers({ onBack }: { onBack: () => void }) {
   const [offers, setOffers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showAlert } = useCustomAlert();
 
   // 1. Fetch live offers from Yola Keke Engine
   const fetchOffers = async () => {
@@ -41,15 +43,15 @@ export default function DriverOffers({ onBack }: { onBack: () => void }) {
     try {
       const result = await acceptRide(tripId, token);
       if (result.status === 'success') {
-        Alert.alert("Success", "Trip Accepted! Head to pickup.");
+        showAlert("Success", "Trip Accepted! Head to pickup.");
         // Redirect to Phase 4: Tracking/Map screen
         // router.push({ pathname: '/(driver)/activeTrip', params: { tripId } });
       } else {
-        Alert.alert("Error", result.error || "Could not accept ride.");
+        showAlert("Error", result.error || "Could not accept ride.");
         fetchOffers(); // Refresh list to remove taken ride
       }
     } catch (error) {
-      Alert.alert("Network Error", "Check your internet connection.");
+      showAlert("Network Error", "Check your internet connection.");
     }
   };
 
@@ -79,7 +81,7 @@ export default function DriverOffers({ onBack }: { onBack: () => void }) {
         {/* Added Fare Display - Vital for Driver Decision */}
         <View style={styles.fareBadge}>
           <Banknote size={16} color="#10B981" />
-          <Text style={styles.fareText}>₦{item.final_fare}</Text>
+          <Text style={styles.fareText}>₦{item.final_fare ? Math.ceil(Number(item.final_fare) / 100) * 100 : "---"}</Text>
         </View>
       </View>
 

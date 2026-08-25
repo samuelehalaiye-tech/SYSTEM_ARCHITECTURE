@@ -4,7 +4,6 @@ export default function DriverLayout() {
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="driverLogin" />
-      <Stack.Screen name="driverSignup" />
       <Stack.Screen name="driverHome" />
       <Stack.Screen name="vehicleInfo" />
       <Stack.Screen name="offers" />

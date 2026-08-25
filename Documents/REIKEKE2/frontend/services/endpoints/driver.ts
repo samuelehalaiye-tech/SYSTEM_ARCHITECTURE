@@ -30,7 +30,10 @@ export const getDriverProfile = async (token: string) => {
                 'Authorization': `Bearer ${token}`
             },
         });
-        if (!response.ok) throw new Error('Failed to fetch driver profile');
+        if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`Failed to fetch driver profile (${response.status}): ${detail}`);
+        }
         return await response.json();
     } catch (error) {
         console.error("Get Driver Profile Error:", error);
@@ -127,8 +130,9 @@ export const getCurrentTrip = async (token: string) => {
 
     
 
-    if (!response.ok) {
-      throw new Error('Failed to fetch current trip state');
+        if (!response.ok) {
+            const detail = await response.text();
+            throw new Error(`Failed to fetch current trip state (${response.status}): ${detail}`);
     }
 
     return await response.json();

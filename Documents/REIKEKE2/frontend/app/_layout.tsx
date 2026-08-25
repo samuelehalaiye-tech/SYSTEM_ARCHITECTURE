@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSegments, useRootNavigationState, Slot } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { CustomAlertProvider } from '../contexts/AlertContext';
 
 export default function RootLayout() {
   const segments = useSegments();
@@ -71,5 +72,9 @@ export default function RootLayout() {
   // Show nothing while loading to avoid "ReferenceError" flash
   if (!isReady || hasToken === null) return null;
 
-  return <Slot />;
+  return (
+    <CustomAlertProvider>
+      <Slot />
+    </CustomAlertProvider>
+  );
 }
